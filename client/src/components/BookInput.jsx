@@ -15,10 +15,7 @@ const BookInput = ({ onBookAdded }) => {
         setError("Please select a PDF file.");
         return;
       }
-      if (selected.size > 5 * 1024 * 1024) {
-        setError("File size must be less than 5MB.");
-        return;
-      }
+      // (Removed file size check)
       setFile(selected);
       setError(null);
     }

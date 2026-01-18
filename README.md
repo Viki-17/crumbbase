@@ -2,6 +2,20 @@
 
 A specialized application for processing PDF books into structural insights, atomic notes, and audio overviews.
 
+### 6. Nginx Configuration (Important for Large Uploads)
+
+To support uploading large PDF files (e.g., > 1MB), you must configure Nginx:
+
+1.  Edit your Nginx config: `sudo nano /etc/nginx/nginx.conf`
+2.  Add `client_max_body_size 50M;` inside the `http` block.
+3.  Restart Nginx: `sudo systemctl restart nginx`
+
+## Future Improvements
+
+- [ ] Add user authentication (Auth0 / Firebase)
+- [ ] Implement vector database (Pinecone / Chroma) for better semantic search
+- [ ] Add multi-language support (i18n)
+
 ## 🚀 Quick Start (Development & Deployment)
 
 The project comes with automated scripts for setting up the environment on **macOS** and **Ubuntu Linux**.
