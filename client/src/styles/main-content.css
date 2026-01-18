@@ -1,0 +1,14 @@
+.main-content {
+  background: var(--main-bg);
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.main-content-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-base);
+}

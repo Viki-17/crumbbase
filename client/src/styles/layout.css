@@ -1,0 +1,31 @@
+.layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--context-panel-width);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.layout.context-panel-hidden {
+  grid-template-columns: var(--sidebar-width) 1fr;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .layout {
+    grid-template-columns: var(--sidebar-width) 1fr;
+  }
+
+  .layout .context-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .layout .sidebar {
+    display: none;
+  }
+}

@@ -1,0 +1,119 @@
+.graph-view {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--main-bg);
+}
+
+.graph-view-header {
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--border-color);
+  background: var(--sidebar-bg);
+}
+
+.graph-view-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-md);
+}
+
+.graph-view-filters {
+  display: flex;
+  gap: var(--space-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.graph-view-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--card-bg);
+  border-radius: var(--border-radius);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.graph-view-filter-label {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.graph-view-filter input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.graph-view-filter input[type="range"] {
+  width: 100px;
+  cursor: pointer;
+}
+
+.graph-view-canvas {
+  flex: 1;
+  position: relative;
+}
+
+.graph-view-legend {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  background: var(--card-bg);
+  padding: var(--space-md);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  font-size: var(--font-size-sm);
+}
+
+.graph-view-legend-title {
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: var(--text-primary);
+}
+
+.graph-view-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: var(--space-xs) 0;
+  color: var(--text-secondary);
+}
+
+.graph-view-legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.graph-view-stats {
+  position: absolute;
+  bottom: var(--space-md);
+  left: var(--space-md);
+  background: var(--card-bg);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--border-radius);
+  border: 1px solid var(--border-color);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  display: flex;
+  gap: var(--space-md);
+}
+
+.graph-view-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: var(--space-xl);
+}
+
+.graph-view-empty-icon {
+  margin-bottom: var(--space-md);
+  opacity: 0.3;
+}
