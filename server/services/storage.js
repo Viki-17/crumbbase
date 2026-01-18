@@ -45,7 +45,31 @@ const getAllBooks = async () => {
 
 const deleteBook = async (id) => {
   await ensureConnected();
+  console.log(`[Storage] Deleting Book: ${id} and all related data...`);
+
+  // 1. Find Chapters
+  const chapters = await Chapter.find({ bookId: id }).lean();
+  const chapterIds = chapters.map((c) => c.id);
+
+  // 2. Delete Notes & Graph Nodes for each Chapter
+  for (const chapId of chapterIds) {
+    await deleteNotesByChapter(id, chapId);
+    // Delete Summary
+    const chap = await Chapter.findOne({ id: chapId });
+    if (chap && chap.summaryId) {
+      await Summary.deleteOne({ id: chap.summaryId });
+    }
+  }
+
+  // 3. Delete Chapters
+  await Chapter.deleteMany({ bookId: id });
+
+  // 4. Delete Analysis
+  await Analysis.deleteOne({ bookId: id });
+
+  // 5. Delete Book
   await Book.deleteOne({ id });
+  console.log(`[Storage] Book ${id} deleted.`);
 };
 
 // --- Chapter Operations ---

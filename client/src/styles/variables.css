@@ -1,26 +1,38 @@
-/* Design Tokens - V8 UI Redesign */
+/* Design Tokens - Modern Material Slate Dark */
 
 :root {
-  /* Colors - Dark Theme */
-  --sidebar-bg: #1e1e1e;
-  --main-bg: #2d2d2d;
-  --panel-bg: #252525;
-  --card-bg: #323232;
+  /* Palette - Slate Dark Theme */
+  --bg-base: #0f172a; /* Slate 950 - Main Background */
+  --bg-surface-1: #1e293b; /* Slate 800 - Cards/Sidebar */
+  --bg-surface-2: #334155; /* Slate 700 - Hover/Input */
+  --bg-surface-3: #475569; /* Slate 600 - Active/Highlight */
 
-  --text-primary: #e0e0e0;
-  --text-secondary: #a0a0a0;
-  --text-tertiary: #6b6b6b;
+  /* Text Colors */
+  --text-primary: #f8fafc; /* Slate 50 */
+  --text-secondary: #cbd5e1; /* Slate 300 */
+  --text-tertiary: #94a3b8; /* Slate 400 */
+  --text-inverse: #0f172a; /* Slate 950 */
 
-  --accent-color: #6366f1;
-  --accent-hover: #7c3aed;
+  /* Brand Colors */
+  --primary: #8b5cf6; /* Violet 500 */
+  --primary-hover: #7c3aed; /* Violet 600 */
+  --primary-light: rgba(139, 92, 246, 0.15);
 
-  --border-color: #3a3a3a;
-  --border-hover: #4a4a4a;
+  --accent: #38bdf8; /* Sky 400 */
 
-  --success: #10b981;
-  --warning: #f59e0b;
-  --error: #ef4444;
-  --info: #3b82f6;
+  /* Status Colors */
+  --success: #10b981; /* Emerald 500 */
+  --success-bg: rgba(16, 185, 129, 0.15);
+
+  --warning: #f59e0b; /* Amber 500 */
+  --warning-bg: rgba(245, 158, 11, 0.15);
+
+  --error: #ef4444; /* Red 500 */
+  --error-bg: rgba(239, 68, 68, 0.15);
+
+  /* Borders & Dividers */
+  --border-color: rgba(148, 163, 184, 0.1);
+  --border-hover: rgba(148, 163, 184, 0.2);
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -28,40 +40,52 @@
   --space-md: 1rem;
   --space-lg: 1.5rem;
   --space-xl: 2rem;
+  --space-2xl: 3rem;
 
   /* Layout */
-  --sidebar-width: 200px;
-  --context-panel-width: 280px;
-  --border-radius: 6px;
+  --sidebar-width: 260px;
+  --context-panel-width: 320px;
+  --header-height: 64px;
+  --border-radius-sm: 8px;
+  --border-radius: 16px; /* Modern Rounded */
+  --border-radius-lg: 24px;
 
   /* Typography */
-  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
-  --font-mono: "SF Mono", "Monaco", "Inconsolata", "Fira Code", "Fira Mono",
-    "Roboto Mono", monospace;
+  --font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Roboto", sans-serif;
+  --font-serif: "Merriweather", "Georgia", serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
-  --font-size-base: 0.95rem;
+  --font-size-base: 1rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
 
-  --line-height-tight: 1.25;
   --line-height-normal: 1.5;
-  --line-height-relaxed: 1.75;
+  --line-height-relaxed: 1.7;
+
+  /* Shadows (Soft Dark Mode Shadows) */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
 
   /* Transitions */
-  --transition-fast: 150ms ease-out;
-  --transition-normal: 250ms ease-out;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Global Resets & Base Styles */
+/* Global Compatibility Variables (Mapping old names to new tokens) */
+:root {
+  --main-bg: var(--bg-base);
+  --sidebar-bg: var(--bg-surface-1);
+  --card-bg: var(--bg-surface-1);
+  --panel-bg: var(--bg-surface-1);
+  --accent-color: var(--primary);
+  --primary-color: var(--primary);
+}
+
+/* Base Resets */
 * {
   box-sizing: border-box;
   margin: 0;
@@ -70,70 +94,24 @@
 
 body {
   font-family: var(--font-family);
-  font-size: var(--font-size-base);
-  line-height: var(--line-height-normal);
+  background: var(--bg-base);
   color: var(--text-primary);
-  background: var(--main-bg);
+  line-height: var(--line-height-normal);
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar Styling */
+/* Modern Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
-
 ::-webkit-scrollbar-track {
-  background: var(--sidebar-bg);
+  background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
+  background: var(--bg-surface-2);
   border-radius: 4px;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-hover);
-}
-
-/* Interactive Elements */
-button,
-a {
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-button:focus-visible,
-a:focus-visible {
-  outline: 2px solid var(--accent-color);
-  outline-offset: 2px;
-}
-
-/* Utility Classes */
-.text-xs {
-  font-size: var(--font-size-xs);
-}
-.text-sm {
-  font-size: var(--font-size-sm);
-}
-.text-base {
-  font-size: var(--font-size-base);
-}
-.text-lg {
-  font-size: var(--font-size-lg);
-}
-
-.text-primary {
-  color: var(--text-primary);
-}
-.text-secondary {
-  color: var(--text-secondary);
-}
-.text-tertiary {
-  color: var(--text-tertiary);
-}
-
-.font-mono {
-  font-family: var(--font-mono);
+  background: var(--bg-surface-3);
 }

@@ -3,6 +3,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const { v4: uuidv4 } = require("uuid");
 const path = require("path");
+const fs = require("fs");
 const { exec } = require("child_process");
 
 // Services
@@ -14,6 +15,8 @@ const {
 const aiService = require("./services/ai-service");
 const embeddingService = require("./services/embeddings");
 const vectorStore = require("./services/vector-store");
+const rabbitmq = require("./services/rabbitmq");
+const worker = require("./worker"); // Import worker to run in same process for simplicity
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -30,6 +33,17 @@ function broadcast(bookId, data) {
     });
   }
 }
+
+// RabbitMQ Event Listener for SSE
+rabbitmq.consumeEvents((event) => {
+  const { bookId, type, ...payload } = event;
+  if (bookId) {
+    broadcast(bookId, { type, ...payload });
+  }
+});
+
+// Start Worker (In same process for now as per "simple setup", but can be separate)
+worker.startWorker().catch(console.error);
 
 // --- API Endpoints ---
 
@@ -194,7 +208,16 @@ app.post("/api/chapters/:id/overview", async (req, res) => {
     const chapter = await storage.getChapter(chapterId);
     if (!chapter) return res.status(404).json({ error: "Chapter not found" });
 
-    processStep(chapter.bookId, chapterId, "overview");
+    // Publish Job instead of direct call
+    await rabbitmq.publishJob({
+      type: "overview",
+      bookId: chapter.bookId,
+      chapterId,
+      stage: "overview",
+    });
+
+    // Optimistic UI update
+    await updateChapterStageStatus(chapterId, "overview", "processing");
     res.json({ message: "Overview generation started" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -207,7 +230,15 @@ app.post("/api/chapters/:id/analysis", async (req, res) => {
     const chapter = await storage.getChapter(chapterId);
     if (!chapter) return res.status(404).json({ error: "Chapter not found" });
 
-    processStep(chapter.bookId, chapterId, "analysis");
+    // Publish Job
+    await rabbitmq.publishJob({
+      type: "analysis",
+      bookId: chapter.bookId,
+      chapterId,
+      stage: "analysis",
+    });
+
+    await updateChapterStageStatus(chapterId, "analysis", "processing");
     res.json({ message: "Analysis generation started" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -220,7 +251,15 @@ app.post("/api/chapters/:id/notes", async (req, res) => {
     const chapter = await storage.getChapter(chapterId);
     if (!chapter) return res.status(404).json({ error: "Chapter not found" });
 
-    processStep(chapter.bookId, chapterId, "notes");
+    // Publish Job
+    await rabbitmq.publishJob({
+      type: "notes",
+      bookId: chapter.bookId,
+      chapterId,
+      stage: "notes",
+    });
+
+    await updateChapterStageStatus(chapterId, "notes", "processing");
     res.json({ message: "Notes generation started" });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -341,21 +380,41 @@ app.get("/api/folders", async (req, res) => {
   }
 });
 
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
+
+// ...
+
 // Process Book (The Core Pipeline)
-app.post("/api/books", async (req, res) => {
-  const { filePath } = req.body;
-  if (!filePath) return res.status(400).json({ error: "Path required" });
-
+app.post("/api/books", upload.single("file"), async (req, res) => {
   try {
-    const absolutePath = path.resolve(filePath);
-    console.log(`Processing: ${absolutePath}`);
-
     const bookId = uuidv4();
+    let absolutePath = "";
+    let isTranscript = false;
+
+    // 1. Handle PDF Upload
+    if (req.file) {
+      if (req.file.mimetype !== "application/pdf") {
+        // Cleanup if not PDF (though multer validation could be better)
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: "Only PDFs are allowed" });
+      }
+      absolutePath = path.resolve(req.file.path);
+    }
+    // 2. Handle Transcript
+    else if (req.body.transcript) {
+      isTranscript = true;
+    } else {
+      return res.status(400).json({ error: "No file or transcript provided" });
+    }
+
+    console.log(`Processing Book: ${bookId}`);
+
     const book = {
       id: bookId,
       type: "book",
-      title: path.basename(absolutePath),
-      path: absolutePath,
+      title: req.file ? req.file.originalname : "Transcript Upload",
+      path: isTranscript ? "TRANSCRIPT" : absolutePath, // path is less relevant for transcript
       createdAt: new Date().toISOString(),
       status: "processing",
       chapters: [],
@@ -364,322 +423,31 @@ app.post("/api/books", async (req, res) => {
 
     res.json({ id: bookId, message: "Processing started" });
 
-    runFullPipeline(bookId, absolutePath);
+    // Trigger Pipeline
+    if (isTranscript) {
+      // Transcript Flow
+      const textChunks = splitIntoChapters(req.body.transcript);
+      await processBookWithChunks(bookId, textChunks); // Logic re-used using RabbitMQ inside
+    } else {
+      // PDF Flow - Extract text first (synchronous for now, or could be a job too)
+      // For simplicity, extract here then push chunks
+      const text = await extractTextFromPDF(absolutePath);
+      const textChunks = splitIntoChapters(text);
+      await processBookWithChunks(bookId, textChunks);
+    }
   } catch (err) {
     console.error(err);
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path); // Cleanup on error
+    }
     res.status(500).json({ error: err.message });
   }
 });
 
-// --- Logic Implementation ---
+// --- Logic Implementation: RabbitMQ Orchestration ---
 
-// --- Logic Implementation: Robust State Machine ---
-
-const STEPS = ["extraction", "summarization", "atomic_notes", "completed"];
-
-async function updateChapterStatus(chapterId, status, error = null) {
-  const update = { status, error };
-  if (status !== "failed") {
-    update.lastStep = status;
-    update.error = null; // Clear error on progress
-  } else {
-    update.$inc = { retryCount: 1 };
-  }
-  await storage.updateChapter(chapterId, update);
-}
-
-// --- Helper: Robust Retry ---
-async function withRetry(fn, label = "Operation", maxRetries = 3) {
-  let lastError;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      const delay = Math.pow(2, i) * 1000;
-      console.warn(
-        `[RETRY] ${label} failed (attempt ${
-          i + 1
-        }/${maxRetries}). Retrying in ${delay}ms...`,
-        err.message
-      );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-  throw lastError;
-}
-
-async function checkChapterCompletion(bookId, chapterId) {
-  const chapter = await storage.getChapter(chapterId);
-  const stages = ["overview", "analysis", "notes"];
-
-  const allDone = stages.every(
-    (s) =>
-      chapter[`${s}Status`] === "completed" ||
-      chapter[`${s}Status`] === "skipped"
-  );
-
-  const anyFailed = stages.some((s) => chapter[`${s}Status`] === "failed");
-
-  if (anyFailed) {
-    await updateChapterStatus(chapterId, "failed");
-    broadcast(bookId, { type: "chapterStatus", chapterId, status: "failed" });
-  } else if (allDone) {
-    await updateChapterStatus(chapterId, "completed");
-    broadcast(bookId, {
-      type: "chapterStatus",
-      chapterId,
-      status: "completed",
-    });
-    broadcast(bookId, { type: "chapterDone", chapterId });
-  }
-}
-
-async function generateChapterSummaryLogic(bookId, chapterId) {
-  console.log(`[PIPELINE] Starting Summary/Analysis for Chapter: ${chapterId}`);
-  let chapter = await storage.getChapter(chapterId);
-
-  // --- OVERVIEW ---
-  if (
-    chapter.overviewStatus !== "completed" &&
-    chapter.overviewStatus !== "skipped"
-  ) {
-    await updateChapterStageStatus(chapterId, "overview", "processing");
-    broadcast(bookId, {
-      type: "stageStatus",
-      chapterId,
-      stage: "overview",
-      status: "processing",
-    }); // New event type? Or reuse chapterStatus? Let's assume client handles it.
-    // Actually, let's just stick to updateChapterStatus for now or add specific broadcast if needed.
-    // Ideally we broadcast the full chapter update.
-
-    try {
-      // Ensure summary doc exists
-      let summary = await storage.getChapterSummary(chapter.summaryId);
-      if (!summary) {
-        summary = {
-          id: uuidv4(),
-          type: "chapter_summary",
-          chapterId: chapterId,
-          createdAt: new Date().toISOString(),
-        };
-        await storage.saveChapterSummary(summary);
-        chapter.summaryId = summary.id;
-        await storage.saveChapter(chapter);
-      }
-
-      console.log(`[PIPELINE] Generating Overview for Chapter: ${chapterId}`);
-      let currentOverview = "";
-      await withRetry(
-        () =>
-          aiService.generateChapterOverview(chapter.rawText, (token) => {
-            currentOverview += token;
-            broadcast(bookId, {
-              type: "overviewStream",
-              chapterId,
-              token,
-              content: currentOverview,
-            });
-          }),
-        "Overview Generation"
-      );
-      summary.overview = currentOverview;
-      await storage.saveChapterSummary(summary);
-      await updateChapterStageStatus(chapterId, "overview", "completed");
-    } catch (err) {
-      console.error("Overview Failed", err);
-      await updateChapterStageStatus(chapterId, "overview", "failed");
-      throw err; // Re-throw to stop pipeline? Or continue?
-      // If one fails, we probably stop this branch.
-    }
-  }
-
-  // --- ANALYSIS ---
-  // Refresh chapter state
-  chapter = await storage.getChapter(chapterId);
-  if (
-    chapter.analysisStatus !== "completed" &&
-    chapter.analysisStatus !== "skipped"
-  ) {
-    await updateChapterStageStatus(chapterId, "analysis", "processing");
-    try {
-      // Ensure summary doc (might have been created above)
-      let summary = await storage.getChapterSummary(chapter.summaryId);
-
-      console.log(
-        `[PIPELINE] Generating Structured Analysis for Chapter: ${chapterId}`
-      );
-      const summaryJSON = await withRetry(
-        () => aiService.generateStructuredSummary(chapter.rawText),
-        "Structured Summary Generation"
-      );
-
-      Object.assign(summary, summaryJSON);
-      await storage.saveChapterSummary(summary);
-
-      await updateChapterStageStatus(chapterId, "analysis", "completed");
-      broadcast(bookId, { type: "chapterDone", chapterId, summary });
-    } catch (err) {
-      console.error("Analysis Failed", err);
-      await updateChapterStageStatus(chapterId, "analysis", "failed");
-      throw err;
-    }
-  }
-}
-
-async function generateChapterNotesLogic(bookId, chapterId) {
-  console.log(`[PIPELINE] Starting Atomic Notes for Chapter: ${chapterId}`);
-  let chapter = await storage.getChapter(chapterId);
-
-  if (
-    chapter.notesStatus === "completed" ||
-    chapter.notesStatus === "skipped"
-  ) {
-    return;
-  }
-
-  await updateChapterStageStatus(chapterId, "notes", "processing");
-
+async function processBookWithChunks(bookId, textChunks) {
   try {
-    const summary = await storage.getChapterSummary(chapter.summaryId);
-    if (!summary) {
-      throw new Error("Cannot generate notes without chapter summary/analysis");
-    }
-
-    // IDEMPOTENCY: Clear existing notes for this chapter before generating new ones
-    console.log(
-      `[PIPELINE] Clearing existing notes for Chapter: ${chapterId} to prevent duplicates`
-    );
-    await storage.deleteNotesByChapter(bookId, chapterId);
-
-    const notesData = await withRetry(
-      () =>
-        aiService.generateAtomicNotes({
-          mainIdea: summary.mainIdea || "Generated from raw text",
-          keyConcepts: summary.keyConcepts || [],
-        }),
-      "Atomic Notes Generation"
-    );
-
-    console.log(
-      `[PIPELINE] Generated ${notesData.length} note suggestions for Chapter: ${chapterId}`
-    );
-
-    for (const n of notesData) {
-      const noteId = uuidv4();
-
-      // Embedding generation with retry
-      const embedding = await withRetry(
-        () => embeddingService.generateEmbedding(`${n.title}\n${n.content}`),
-        "Embedding Generation"
-      );
-
-      // Temp note for vector search
-      const tempNote = {
-        id: noteId,
-        title: n.title,
-        content: n.content,
-        embedding,
-      };
-
-      // Suggesting links (internal cache, lower risk but still)
-      const suggestions = await vectorStore.suggestLinks(tempNote);
-
-      const note = {
-        id: noteId,
-        type: "atomic_note",
-        title: n.title,
-        content: n.content,
-        tags: n.tags || [],
-        source: { bookId, chapterId },
-        links: [],
-        suggestedLinks: suggestions,
-        embedding,
-        createdAt: new Date().toISOString(),
-      };
-      await storage.saveNote(note);
-      vectorStore.addNoteToCache(note);
-    }
-
-    await updateChapterStageStatus(chapterId, "notes", "completed");
-    broadcast(bookId, { type: "chapterDone", chapterId }); // Trigger refetch
-    console.log(`[PIPELINE] Atomic Notes Completed for Chapter: ${chapterId}`);
-  } catch (err) {
-    console.error("Notes Failed", err);
-    await updateChapterStageStatus(chapterId, "notes", "failed");
-    throw err;
-  }
-}
-
-async function processStep(bookId, chapterId, targetStep) {
-  console.log(
-    `[API] Manual step triggered: ${targetStep} for chapter ${chapterId}`
-  );
-  try {
-    // Reset status to pending so it runs
-    await updateChapterStageStatus(chapterId, targetStep, "pending");
-
-    // Run pipeline logic
-    // We basically kick off runChapterPipeline but focus on the target step
-    // But since runChapterPipeline is sequential, let's just run the specific logic functions
-
-    if (targetStep === "overview") {
-      await generateChapterSummaryLogic(bookId, chapterId); // This runs Overview AND Analysis if needed, but we can rely on checks inside
-      // Check if we should continue?
-      runChapterPipeline(bookId, chapterId);
-    } else if (targetStep === "analysis") {
-      // Force allow analysis even if overview is pending? No, let standard logic apply.
-      // But user might want to retry just analysis.
-      // generateChapterSummaryLogic handles both.
-      await generateChapterSummaryLogic(bookId, chapterId);
-      runChapterPipeline(bookId, chapterId);
-    } else if (targetStep === "notes") {
-      await generateChapterNotesLogic(bookId, chapterId);
-      checkChapterCompletion(bookId, chapterId);
-    }
-  } catch (err) {
-    console.error(`[API] Manual step ${targetStep} failed:`, err);
-    broadcast(bookId, {
-      type: "error",
-      message: `Step ${targetStep} failed: ${err.message}`,
-    });
-  }
-}
-
-async function runChapterPipeline(bookId, chapterId) {
-  try {
-    // Update main status to processing if not already
-    await updateChapterStatus(chapterId, "summarization"); // keeping generic status for legacy compatibility/badge
-
-    // 1. Overview & Analysis
-    await generateChapterSummaryLogic(bookId, chapterId);
-
-    // 2. Atomic Notes (only if 1 didn't fail hard enough to throw)
-    await generateChapterNotesLogic(bookId, chapterId);
-
-    // 3. Final Check
-    await checkChapterCompletion(bookId, chapterId);
-  } catch (err) {
-    console.error(`Chapter ${chapterId} Failed in pipeline:`, err);
-    // Don't mark whole chapter failed if just one step failed?
-    // logic in checkChapterCompletion will handle "failed" status if any sub-status is failed.
-    await checkChapterCompletion(bookId, chapterId);
-
-    broadcast(bookId, {
-      type: "error",
-      message: `Chapter failed: ${err.message}`,
-    });
-  }
-}
-
-async function runFullPipeline(bookId, filePath) {
-  try {
-    broadcast(bookId, { type: "status", message: "Extracting text..." });
-
-    const pdfText = await extractTextFromPDF(filePath);
-    const textChunks = splitIntoChapters(pdfText);
-
     let book = await storage.getBook(bookId);
 
     const chapterIds = [];
@@ -708,47 +476,69 @@ async function runFullPipeline(bookId, filePath) {
     await storage.saveBook(book);
     broadcast(bookId, { type: "bookUpdate", book });
 
-    // Process Chapters Sequentially
+    // Publish Initial Jobs (Overview) for all chapters
     for (const chapId of chapterIds) {
-      await runChapterPipeline(bookId, chapId);
+      await rabbitmq.publishJob({
+        type: "overview",
+        bookId,
+        chapterId: chapId,
+        stage: "overview",
+      });
     }
 
-    // Book Summary
-    broadcast(bookId, {
-      type: "status",
-      message: "Synthesizing Book Analysis...",
-    });
-    const allSummaries = [];
-    for (const chapId of chapterIds) {
-      const chap = await storage.getChapter(chapId);
-      if (chap.status === "completed" && chap.summaryId) {
-        const sum = await storage.getChapterSummary(chap.summaryId);
-        if (sum) allSummaries.push(sum);
+    console.log(`Pipeline started for book: ${bookId}`);
+  } catch (err) {
+    console.error(`Pipeline setup failed for ${bookId}`, err);
+    let book = await storage.getBook(bookId);
+    if (book) {
+      book.status = "error";
+      await storage.saveBook(book);
+    }
+  }
+}
+
+async function runTranscriptPipeline(bookId, text) {
+  try {
+    broadcast(bookId, { type: "status", message: "Processing transcript..." });
+    const textChunks = splitIntoChapters(text);
+    await processBookWithChunks(bookId, textChunks);
+  } catch (err) {
+    console.error(`Transcript Pipeline failed for ${bookId}`, err);
+    // Error handling duplicated? processBookWithChunks handles its own errors mostly, but if split fails or something before...
+    const book = await storage.getBook(bookId);
+    if (book) {
+      book.status = "error";
+      await storage.saveBook(book);
+      broadcast(bookId, { type: "error", message: err.message });
+    }
+  }
+}
+
+async function runFullPipeline(bookId, filePath, shouldDelete = false) {
+  try {
+    broadcast(bookId, { type: "status", message: "Extracting text..." });
+
+    const pdfText = await extractTextFromPDF(filePath);
+
+    // Cleanup File if needed
+    if (shouldDelete) {
+      try {
+        fs.unlinkSync(filePath);
+        console.log(`Deleted temp file: ${filePath}`);
+      } catch (e) {
+        console.error("Failed to delete temp file", e);
       }
     }
 
-    if (allSummaries.length > 0) {
-      const analysisJSON = await aiService.generateOverallAnalysis(
-        allSummaries
-      );
-      const analysis = {
-        id: uuidv4(),
-        type: "book_summary",
-        bookId,
-        ...analysisJSON,
-        createdAt: new Date().toISOString(),
-      };
-      await storage.saveAnalysis(analysis);
-    }
-
-    book = await storage.getBook(bookId);
-    book.status = "done";
-    await storage.saveBook(book);
-
-    broadcast(bookId, { type: "bookDone", book });
-    console.log(`Pipeline complete for book: ${bookId}`);
+    const textChunks = splitIntoChapters(pdfText);
+    await processBookWithChunks(bookId, textChunks);
   } catch (err) {
     console.error(`Pipeline failed for ${bookId}`, err);
+    // Try cleanup even on error
+    if (shouldDelete && fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
     const book = await storage.getBook(bookId);
     if (book) {
       book.status = "error";

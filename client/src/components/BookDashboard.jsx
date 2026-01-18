@@ -343,7 +343,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
   };
 
   return (
-    <div className="container">
+    <div className="container book-dashboard">
       {/* Header Card */}
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -503,47 +503,26 @@ const BookDashboard = ({ bookId, onDelete }) => {
         <div className="content-area">
           {selectedChapter ? (
             <div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "1rem",
-                  borderBottom: "1px solid var(--border-color)",
-                  marginBottom: "1rem",
-                }}
-              >
+              <div className="dashboard-tabs">
                 <button
-                  style={{
-                    background:
-                      activeTab === "overview"
-                        ? "var(--primary-color)"
-                        : "transparent",
-                    fontSize: "0.9rem",
-                  }}
+                  className={`tab-btn ${
+                    activeTab === "overview" ? "active" : ""
+                  }`}
                   onClick={() => setActiveTab("overview")}
                 >
                   📖 Overview {getTabStatusIcon(selectedChapter.overviewStatus)}
                 </button>
                 <button
-                  style={{
-                    background:
-                      activeTab === "summary"
-                        ? "var(--primary-color)"
-                        : "transparent",
-                    fontSize: "0.9rem",
-                  }}
+                  className={`tab-btn ${
+                    activeTab === "summary" ? "active" : ""
+                  }`}
                   onClick={() => setActiveTab("summary")}
                 >
                   🎯 Structured Analysis{" "}
                   {getTabStatusIcon(selectedChapter.analysisStatus)}
                 </button>
                 <button
-                  style={{
-                    background:
-                      activeTab === "notes"
-                        ? "var(--primary-color)"
-                        : "transparent",
-                    fontSize: "0.9rem",
-                  }}
+                  className={`tab-btn ${activeTab === "notes" ? "active" : ""}`}
                   onClick={() => setActiveTab("notes")}
                 >
                   🧠 Atomic Notes ({chapterNotes.length}){" "}

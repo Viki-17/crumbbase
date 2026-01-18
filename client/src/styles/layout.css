@@ -9,6 +9,20 @@
   grid-template-columns: var(--sidebar-width) 1fr;
 }
 
+/* Mobile Header */
+.mobile-header {
+  display: none;
+}
+
+/* Mobile Toggle */
+.mobile-menu-toggle {
+  display: none; /* Hidden on desktop */
+}
+
+.mobile-sidebar-overlay {
+  display: none;
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .layout {
@@ -22,10 +36,92 @@
 
 @media (max-width: 768px) {
   .layout {
-    grid-template-columns: 1fr;
+    display: block; /* Stack layout */
+    position: relative;
+    height: 100vh;
+    overflow: hidden;
   }
 
-  .layout .sidebar {
-    display: none;
+  /* Show Header */
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--header-height);
+    background: rgba(15, 23, 42, 0.8); /* Semi-transparent base */
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+    z-index: 2000;
+    padding: 0 1rem;
+  }
+
+  .mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: none;
+    padding: 0;
+    color: var(--text-primary);
+    width: 32px;
+    height: 32px;
+    box-shadow: none; /* Remove button shadow for header icon style */
+  }
+
+  .mobile-brand {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  /* Sidebar Drawer */
+  .sidebar-container {
+    position: fixed;
+    top: 0;
+    left: -280px; /* Hide off-screen (match new width) */
+    width: 280px; /* Wider for mobile */
+    height: 100%;
+    background: var(
+      --bg-base
+    ); /* Match base, sidebar usually has surface-1 but let's see */
+    z-index: 2001; /* Above toggle */
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar-container.mobile-visible {
+    transform: translateX(280px);
+  }
+
+  /* Overlay */
+  .mobile-sidebar-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 900;
+    animation: fadeIn 0.3s;
+  }
+
+  .main-content {
+    height: 100%;
+    padding-top: 60px; /* Space for the toggle button */
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }

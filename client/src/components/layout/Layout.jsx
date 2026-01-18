@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PanelRightOpen } from "lucide-react";
+import { PanelRightOpen, Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 import ContextPanel from "./ContextPanel";
 import "./../../styles/layout.css";
@@ -23,17 +23,46 @@ const Layout = ({
   books = [],
 }) => {
   const [contextPanelVisible, setContextPanelVisible] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (
     <div
       className={`layout ${!contextPanelVisible ? "context-panel-hidden" : ""}`}
     >
-      <Sidebar
-        onSelectView={onSelectView}
-        selectedNote={selectedNote}
-        selectedBook={selectedBook}
-        books={books}
-      />
+      {/* Mobile Header */}
+      <div className="mobile-header">
+        <button
+          className="mobile-menu-toggle"
+          onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
+        >
+          <Menu size={20} />
+        </button>
+        <span className="mobile-brand">CrumbBase</span>
+      </div>
+
+      {/* Mobile Overlay */}
+      {mobileSidebarOpen && (
+        <div
+          className="mobile-sidebar-overlay"
+          onClick={() => setMobileSidebarOpen(false)}
+        />
+      )}
+
+      <div
+        className={`sidebar-container ${
+          mobileSidebarOpen ? "mobile-visible" : ""
+        }`}
+      >
+        <Sidebar
+          onSelectView={(view, id) => {
+            onSelectView(view, id);
+            setMobileSidebarOpen(false); // Close on selection
+          }}
+          selectedNote={selectedNote}
+          selectedBook={selectedBook}
+          books={books}
+        />
+      </div>
 
       <main className="main-content">{children}</main>
 
