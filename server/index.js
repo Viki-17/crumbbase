@@ -13,6 +13,7 @@ const {
   splitIntoChapters,
 } = require("./services/pdf-processor");
 const aiService = require("./services/ai-service");
+const ttsService = require("./services/tts-service");
 const embeddingService = require("./services/embeddings");
 const vectorStore = require("./services/vector-store");
 const rabbitmq = require("./services/rabbitmq");
@@ -262,6 +263,27 @@ app.post("/api/chapters/:id/notes", async (req, res) => {
     await updateChapterStageStatus(chapterId, "notes", "processing");
     res.json({ message: "Notes generation started" });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/chapters/:id/audio", async (req, res) => {
+  try {
+    const chapter = await storage.getChapter(req.params.id);
+    if (!chapter) return res.status(404).json({ error: "Chapter not found" });
+
+    // Use overview for TTS
+    const summary = await storage.getChapterSummary(chapter.summaryId);
+    if (!summary || !summary.overview) {
+      return res
+        .status(400)
+        .json({ error: "Chapter overview not available yet" });
+    }
+
+    const audioPath = await ttsService.generateAudio(summary.overview);
+    ttsService.streamAudio(audioPath, res);
+  } catch (err) {
+    console.error("TTS Error:", err);
     res.status(500).json({ error: err.message });
   }
 });

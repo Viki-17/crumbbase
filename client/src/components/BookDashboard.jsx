@@ -19,6 +19,21 @@ const BookDashboard = ({ bookId, onDelete }) => {
   // Streaming State
   const [streamingOverviews, setStreamingOverviews] = useState({});
 
+  // Audio State
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const audioRef = useRef(null);
+
+  // Cleanup audio when chapter changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    setIsPlaying(false);
+    setIsAudioLoading(false);
+  }, [selectedChapterId]);
+
   const hasAutoSelected = useRef(false);
 
   // Fetch Logic
@@ -194,6 +209,45 @@ const BookDashboard = ({ bookId, onDelete }) => {
       }));
     } catch (err) {
       toast.error("Failed to skip");
+    }
+  };
+
+  const handleListen = async () => {
+    if (!selectedChapterId) return;
+
+    // Toggle Play/Pause if audio exists
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    // Fetch and Play
+    try {
+      setIsAudioLoading(true);
+      // We can use the direct URL since the backend streams it
+      const audioUrl = `/api/chapters/${selectedChapterId}/audio`;
+
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      audio.onended = () => setIsPlaying(false);
+      audio.onpause = () => setIsPlaying(false);
+      audio.onplay = () => setIsPlaying(true);
+
+      // Wait for metadata or just play
+      await audio.play();
+      setIsPlaying(true);
+    } catch (err) {
+      toast.error("Failed to play audio");
+      console.error(err);
+    } finally {
+      setIsAudioLoading(false);
     }
   };
 
@@ -537,7 +591,37 @@ const BookDashboard = ({ bookId, onDelete }) => {
                   selectedChapter.overviewStatus === "skipped" ? (
                     renderGenerateButton("overview", "Generate Overview")
                   ) : (
-                    <ReactMarkdown>{overviewContent}</ReactMarkdown>
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          marginBottom: "1rem",
+                        }}
+                      >
+                        <button
+                          onClick={handleListen}
+                          disabled={isAudioLoading}
+                          style={{
+                            background: isPlaying
+                              ? "#ef4444"
+                              : "var(--primary-color)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          {isAudioLoading ? (
+                            "⏳ Loading..."
+                          ) : isPlaying ? (
+                            <>⏸ Stop Listening</>
+                          ) : (
+                            <>🔊 Listen to Overview</>
+                          )}
+                        </button>
+                      </div>
+                      <ReactMarkdown>{overviewContent}</ReactMarkdown>
+                    </div>
                   )}
                 </div>
               )}
