@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import api from "../api";
 import { Trash2 } from "lucide-react";
 
 const NoteCard = ({
@@ -24,7 +24,7 @@ const NoteCard = ({
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
-      const res = await axios.patch(`/api/notes/${note.id}`, {
+      const res = await api.patch(`/notes/${note.id}`, {
         title: editedTitle,
         content: editedContent,
         tags: tagsArray,

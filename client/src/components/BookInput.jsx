@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
+import api from "../api";
 
 const BookInput = ({ onBookAdded }) => {
   const [mode, setMode] = useState("pdf"); // 'pdf' or 'transcript'
@@ -59,11 +59,11 @@ const BookInput = ({ onBookAdded }) => {
 
       let response;
       if (mode === "pdf") {
-        response = await axios.post("/api/books", formData, {
+        response = await api.post("/books", formData, {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
-        response = await axios.post("/api/books", { transcript });
+        response = await api.post("/books", { transcript });
       }
 
       onBookAdded(response.data.id);

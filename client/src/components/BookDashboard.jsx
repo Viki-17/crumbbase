@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import api from "../api";
 import { toast } from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
 import NoteCard from "./NoteCard";
@@ -39,7 +39,13 @@ const BookDashboard = ({ bookId, onDelete }) => {
   // Fetch Logic
   const fetchBook = async () => {
     try {
-      const response = await axios.get(`/api/books/${bookId}`);
+      // (Removed invalid selectedChapter check)
+      // Replaced pure axios with api instance
+      // Note: api.get already has baseURL /api
+      // Original: axios.get(`/api/books/${bookId}`)
+      // New: api.get(`/books/${bookId}`) -- Wait, if baseURL is /api, then we need /books/${bookId}
+
+      const response = await api.get(`/books/${bookId}`);
       setBook(response.data);
 
       if (
@@ -113,7 +119,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
   }, [bookId]);
 
   useEffect(() => {
-    axios.get("/api/notes").then((res) => setAllNotes(res.data));
+    api.get("/notes").then((res) => setAllNotes(res.data));
   }, [book]); // Refresh notes when book updates (e.g. generation done)
 
   const handleUpdateNote = (updatedNote) => {
@@ -124,7 +130,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
 
   const handleDeleteNote = async (noteId) => {
     try {
-      await axios.delete(`/api/notes/${noteId}`);
+      await api.delete(`/notes/${noteId}`);
       // Update the local state to remove the deleted note
       setAllNotes((prev) => prev.filter((n) => n.id !== noteId));
       toast.success("Note deleted");
@@ -140,12 +146,13 @@ const BookDashboard = ({ bookId, onDelete }) => {
       abortControllerRef.current.abort();
     }
     try {
-      await axios.delete(`/api/books/${bookId}`);
+      console.log("Deleting Book:", bookId);
+      await api.delete(`/books/${bookId}`);
       toast.success("Book deleted");
-      onDelete();
+      onDelete(); // Parent refresh
     } catch (err) {
-      toast.error("Failed to delete book");
       console.error(err);
+      toast.error("Failed to delete book");
     }
   };
 
@@ -171,7 +178,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
     const controller = new AbortController();
     abortControllerRef.current = controller;
     try {
-      await axios.post(`/api/chapters/${selectedChapterId}/${step}`, null, {
+      await api.post(`/chapters/${selectedChapterId}/${step}`, null, {
         signal: controller.signal,
       });
       // SSE will catch completion
@@ -196,7 +203,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
   const handleSkip = async (stage) => {
     if (!selectedChapterId) return;
     try {
-      await axios.post(`/api/chapters/${selectedChapterId}/skip/${stage}`);
+      await api.post(`/chapters/${selectedChapterId}/skip/${stage}`);
       toast.success(`Skipped ${stage}`);
       // Update local state immediately
       setBook((prev) => ({
@@ -231,6 +238,10 @@ const BookDashboard = ({ bookId, onDelete }) => {
     try {
       setIsAudioLoading(true);
       // We can use the direct URL since the backend streams it
+      // For audio element, we need FULL URL if it's external, or relative.
+      // Since we updated routes, it is /api/chapters/...
+      // api.defaults.baseURL is /api, but new Audio() doesn't use axios.
+      // So we must include /api manually here, which is correct for current setup.
       const audioUrl = `/api/chapters/${selectedChapterId}/audio`;
 
       const audio = new Audio(audioUrl);

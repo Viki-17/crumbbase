@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "./api";
 import { Toaster } from "react-hot-toast";
 import Layout from "./components/layout/Layout";
 import NoteView from "./components/views/NoteView";
@@ -43,7 +43,7 @@ function App() {
 
   const fetchBooks = async () => {
     try {
-      const res = await axios.get("/api/books");
+      const res = await api.get("/books");
       setBooks(res.data);
     } catch (err) {
       console.error(err);
@@ -54,7 +54,7 @@ function App() {
 
   const fetchBookDetails = async () => {
     try {
-      const res = await axios.get(`/api/books/${selectedBookId}`);
+      const res = await api.get(`/books/${selectedBookId}`);
       setSelectedBook(res.data);
     } catch (err) {
       console.error(err);

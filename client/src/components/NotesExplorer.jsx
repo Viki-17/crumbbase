@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api";
 import toast from "react-hot-toast";
 import { Folder, FolderPlus, ArrowLeft, Grid, Layers } from "lucide-react";
 import NoteCard from "./NoteCard";
@@ -25,13 +25,13 @@ const NotesExplorer = () => {
   }, []);
 
   const fetchNotes = async () => {
-    const res = await axios.get("/api/notes");
+    const res = await api.get("/notes");
     setNotes(res.data);
   };
 
   const fetchFolders = async () => {
     try {
-      const res = await axios.get("/api/folders");
+      const res = await api.get("/folders");
       setFolders(res.data.folders || []);
     } catch (err) {
       console.error(err);
@@ -39,7 +39,7 @@ const NotesExplorer = () => {
   };
 
   const fetchGraph = async () => {
-    const res = await axios.get("/api/graph");
+    const res = await api.get("/graph");
     setGraph(res.data);
   };
 
@@ -47,7 +47,7 @@ const NotesExplorer = () => {
     try {
       setIsOrganizing(true);
       toast("AI is organizing your notes...");
-      const res = await axios.post("/api/folders/generate");
+      const res = await api.post("/folders/generate");
       setFolders(res.data.folders || []);
       setViewMode("folders");
       toast.success("Organization complete!");
@@ -64,7 +64,7 @@ const NotesExplorer = () => {
 
   const handleDeleteNote = async (noteId) => {
     try {
-      await axios.delete(`/api/notes/${noteId}`);
+      await api.delete(`/notes/${noteId}`);
       setNotes((prev) => prev.filter((n) => n.id !== noteId));
       toast.success("Note deleted");
     } catch (err) {
@@ -89,7 +89,7 @@ const NotesExplorer = () => {
     setIsExplaining(true);
     setExplanation(null);
     try {
-      const res = await axios.post("/api/links/explain", {
+      const res = await api.post("/links/explain", {
         noteIdA: selectedNotes[0],
         noteIdB: selectedNotes[1],
       });
@@ -104,7 +104,7 @@ const NotesExplorer = () => {
     if (selectedNotes.length !== 2 || !explanation) return;
     setIsLinking(true);
     try {
-      await axios.post("/api/links", {
+      await api.post("/links", {
         from: selectedNotes[0],
         to: selectedNotes[1],
         reason: explanation,

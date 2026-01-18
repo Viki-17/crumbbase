@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import axios from "axios";
+import api from "../../api";
 import ForceGraph2D from "react-force-graph-2d";
 import { Network } from "lucide-react";
 import Loading from "./../layout/Loading";
@@ -43,8 +43,8 @@ const GraphView = ({ onSelectNote }) => {
     try {
       setLoading(true);
       const [graphRes, notesRes] = await Promise.all([
-        axios.get("/api/graph"),
-        axios.get("/api/notes"),
+        api.get("/graph"),
+        api.get("/notes"),
       ]);
 
       setAllNotes(notesRes.data);

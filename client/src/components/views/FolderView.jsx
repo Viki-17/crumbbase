@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../api";
 import { Folder, Sparkles, FileText } from "lucide-react";
 import Loading from "./../layout/Loading";
 import "./../../styles/folder-view.css";
@@ -25,8 +25,8 @@ const FolderView = ({ onSelectNote }) => {
     try {
       setLoading(true);
       const [foldersRes, notesRes] = await Promise.all([
-        axios.get("/api/folders"),
-        axios.get("/api/notes"),
+        api.get("/folders"),
+        api.get("/notes"),
       ]);
 
       setFolders(foldersRes.data.folders || []);
@@ -41,7 +41,7 @@ const FolderView = ({ onSelectNote }) => {
   const handleGenerateFolders = async () => {
     try {
       setGenerating(true);
-      const res = await axios.post("/api/folders/generate");
+      const res = await api.post("/folders/generate");
       setFolders(res.data.folders || []);
     } catch (err) {
       console.error("Failed to generate folders:", err);

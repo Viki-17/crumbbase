@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../api";
 import { X, Link2, Sparkles, ArrowRight, ArrowLeft } from "lucide-react";
 import "./../../styles/context-panel.css";
 
@@ -26,7 +26,7 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
     if (!selectedNote?.id) return;
     try {
       setLoadingLinks(true);
-      const res = await axios.get(`/api/notes/${selectedNote.id}/links`);
+      const res = await api.get(`/notes/${selectedNote.id}/links`);
       setLinks(res.data);
     } catch (err) {
       console.error("Failed to fetch links", err);
@@ -39,9 +39,7 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
     if (!selectedNote?.id) return;
     try {
       setAnalyzing(true);
-      const res = await axios.post(
-        `/api/notes/${selectedNote.id}/suggest-links`
-      );
+      const res = await axios.post(`/notes/${selectedNote.id}/suggest-links`);
       setSuggestions(res.data);
     } catch (err) {
       console.error("AI Suggestion failed", err);
@@ -52,7 +50,7 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
 
   const handleAcceptLink = async (suggestion) => {
     try {
-      await axios.post("/api/links", {
+      await api.post("/links", {
         from: selectedNote.id,
         to: suggestion.toId,
         reason: suggestion.reason,

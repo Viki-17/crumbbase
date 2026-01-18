@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../../api";
 import {
   BookOpen,
   FileText,
@@ -46,8 +46,8 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
   const fetchData = async () => {
     try {
       const [notesRes, foldersRes] = await Promise.all([
-        axios.get("/api/notes"),
-        axios.get("/api/folders"),
+        api.get("/notes"),
+        api.get("/folders"),
       ]);
 
       setNotesCount(notesRes.data.length);

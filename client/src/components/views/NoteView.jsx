@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import axios from "axios";
+import api from "../../api";
 import { Edit2, Save, X, Sparkles, FileText } from "lucide-react";
 import Loading from "../layout/Loading";
 import "./../../styles/note-view.css";
@@ -37,7 +37,7 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
   const fetchNote = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`/api/notes`);
+      const res = await api.get(`/notes`);
       const foundNote = res.data.find((n) => String(n.id) === String(noteId));
 
       if (foundNote) {
@@ -61,7 +61,7 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
         .map((t) => t.trim())
         .filter(Boolean);
 
-      const res = await axios.patch(`/api/notes/${noteId}`, {
+      const res = await api.patch(`/notes/${noteId}`, {
         title: editedTitle,
         content: editedContent,
         tags: tagsArray,
@@ -87,7 +87,7 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
   const handleSuggestLinks = async () => {
     try {
       setSuggesting(true);
-      const res = await axios.post(`/api/notes/${noteId}/suggest-links`);
+      const res = await api.post(`/notes/${noteId}/suggest-links`);
       // API returns array of { toId, reason, confidence }
       // We need to fetch the titles for 'toId' to display nicely?
       // Or maybe the API should return titles too.
@@ -99,7 +99,7 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
       // For this view, we might need to fetch all notes to resolve names if not passed.
       // Let's do a quick lookup fetch since we don't have allNotes prop here.
 
-      const allNotesRes = await axios.get("/api/notes"); // Optimizable
+      const allNotesRes = await api.get("/notes"); // Optimizable
       const allNotes = allNotesRes.data;
 
       const enhancedSuggestions = res.data.map((s) => {
@@ -122,7 +122,7 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
 
   const handleAcceptLink = async (suggestion) => {
     try {
-      await axios.post("/api/links", {
+      await api.post("/links", {
         from: noteId,
         to: suggestion.toId,
         reason: suggestion.reason,
