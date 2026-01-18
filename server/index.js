@@ -21,6 +21,7 @@ const worker = require("./worker"); // Import worker to run in same process for 
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const API_BASE = "/api"; // Centralized API Base
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -46,10 +47,11 @@ rabbitmq.consumeEvents((event) => {
 // Start Worker (In same process for now as per "simple setup", but can be separate)
 worker.startWorker().catch(console.error);
 
-// --- API Endpoints ---
+// --- API Router Setup ---
+const router = express.Router();
 
 // List Books
-app.get("/api/books", async (req, res) => {
+router.get("/books", async (req, res) => {
   try {
     const allBooks = await storage.getAllBooks();
     const books = allBooks.map((b) => ({
@@ -65,7 +67,7 @@ app.get("/api/books", async (req, res) => {
 });
 
 // Get Book Details (Full view with structured data)
-app.get("/api/books/:id", async (req, res) => {
+router.get("/books/:id", async (req, res) => {
   try {
     const book = await storage.getBook(req.params.id);
     if (!book) return res.status(404).json({ error: "Book not found" });
@@ -93,7 +95,7 @@ app.get("/api/books/:id", async (req, res) => {
   }
 });
 
-app.get("/api/notes", async (req, res) => {
+router.get("/notes", async (req, res) => {
   try {
     const notes = await storage.getAllNotes();
     res.json(notes);
@@ -103,7 +105,7 @@ app.get("/api/notes", async (req, res) => {
 });
 
 // Update Note
-app.patch("/api/notes/:id", async (req, res) => {
+router.patch("/notes/:id", async (req, res) => {
   try {
     const { title, content, tags } = req.body;
     const updatedNote = await storage.updateNote(req.params.id, {
@@ -119,7 +121,7 @@ app.patch("/api/notes/:id", async (req, res) => {
 });
 
 // Delete Note
-app.delete("/api/notes/:id", async (req, res) => {
+router.delete("/notes/:id", async (req, res) => {
   try {
     await storage.deleteNote(req.params.id);
     res.json({ message: "Note deleted" });
@@ -129,7 +131,7 @@ app.delete("/api/notes/:id", async (req, res) => {
 });
 
 // Delete Book
-app.delete("/api/books/:id", async (req, res) => {
+router.delete("/books/:id", async (req, res) => {
   try {
     await storage.deleteBook(req.params.id);
     res.json({ message: "Book deleted" });
@@ -139,7 +141,7 @@ app.delete("/api/books/:id", async (req, res) => {
 });
 
 // Pick File
-app.get("/api/system/pick-file", (req, res) => {
+router.get("/system/pick-file", (req, res) => {
   const script = `
       set resultParams to ""
       try
@@ -158,7 +160,7 @@ app.get("/api/system/pick-file", (req, res) => {
 });
 
 // SSE
-app.get("/api/books/:id/events", (req, res) => {
+router.get("/books/:id/events", (req, res) => {
   const bookId = req.params.id;
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
@@ -179,7 +181,7 @@ async function updateChapterStageStatus(chapterId, stage, status) {
   await storage.updateChapter(chapterId, update);
 }
 
-app.post("/api/chapters/:id/skip/:stage", async (req, res) => {
+router.post("/chapters/:id/skip/:stage", async (req, res) => {
   try {
     const { id, stage } = req.params;
     const chapter = await storage.getChapter(id);
@@ -203,7 +205,7 @@ app.post("/api/chapters/:id/skip/:stage", async (req, res) => {
   }
 });
 
-app.post("/api/chapters/:id/overview", async (req, res) => {
+router.post("/chapters/:id/overview", async (req, res) => {
   try {
     const chapterId = req.params.id;
     const chapter = await storage.getChapter(chapterId);
@@ -225,7 +227,7 @@ app.post("/api/chapters/:id/overview", async (req, res) => {
   }
 });
 
-app.post("/api/chapters/:id/analysis", async (req, res) => {
+router.post("/chapters/:id/analysis", async (req, res) => {
   try {
     const chapterId = req.params.id;
     const chapter = await storage.getChapter(chapterId);
@@ -246,7 +248,7 @@ app.post("/api/chapters/:id/analysis", async (req, res) => {
   }
 });
 
-app.post("/api/chapters/:id/notes", async (req, res) => {
+router.post("/chapters/:id/notes", async (req, res) => {
   try {
     const chapterId = req.params.id;
     const chapter = await storage.getChapter(chapterId);
@@ -267,7 +269,7 @@ app.post("/api/chapters/:id/notes", async (req, res) => {
   }
 });
 
-app.get("/api/chapters/:id/audio", async (req, res) => {
+router.get("/chapters/:id/audio", async (req, res) => {
   try {
     const chapter = await storage.getChapter(req.params.id);
     if (!chapter) return res.status(404).json({ error: "Chapter not found" });
@@ -290,7 +292,7 @@ app.get("/api/chapters/:id/audio", async (req, res) => {
 
 // --- Graph API Endpoints ---
 
-app.get("/api/graph", async (req, res) => {
+router.get("/graph", async (req, res) => {
   try {
     const graph = await storage.getGraph();
     res.json(graph);
@@ -299,7 +301,7 @@ app.get("/api/graph", async (req, res) => {
   }
 });
 
-app.post("/api/links/explain", async (req, res) => {
+router.post("/links/explain", async (req, res) => {
   const { noteIdA, noteIdB } = req.body;
   if (!noteIdA || !noteIdB) {
     return res.status(400).json({ error: "noteIdA and noteIdB required" });
@@ -323,7 +325,7 @@ app.post("/api/links/explain", async (req, res) => {
   }
 });
 
-app.post("/api/links", async (req, res) => {
+router.post("/links", async (req, res) => {
   const { from, to, reason } = req.body;
   if (!from || !to || !reason) {
     return res.status(400).json({ error: "from, to, and reason required" });
@@ -349,7 +351,7 @@ app.post("/api/links", async (req, res) => {
 });
 
 // Linked View Endpoint
-app.get("/api/notes/:id/links", async (req, res) => {
+router.get("/notes/:id/links", async (req, res) => {
   try {
     const links = await storage.getNoteLinks(req.params.id);
     res.json(links);
@@ -359,7 +361,7 @@ app.get("/api/notes/:id/links", async (req, res) => {
 });
 
 // AI Link Suggestions Endpoint
-app.post("/api/notes/:id/suggest-links", async (req, res) => {
+router.post("/notes/:id/suggest-links", async (req, res) => {
   try {
     const note = await storage.getNote(req.params.id);
     if (!note) return res.status(404).json({ error: "Note not found" });
@@ -380,7 +382,7 @@ app.post("/api/notes/:id/suggest-links", async (req, res) => {
 });
 
 // Auto Grouping (Folders) Endpoint
-app.post("/api/folders/generate", async (req, res) => {
+router.post("/folders/generate", async (req, res) => {
   try {
     const notes = await storage.getAllNotes();
     if (notes.length === 0) return res.json({ folders: [] });
@@ -393,7 +395,7 @@ app.post("/api/folders/generate", async (req, res) => {
   }
 });
 
-app.get("/api/folders", async (req, res) => {
+router.get("/folders", async (req, res) => {
   try {
     const folders = await storage.getFolders();
     res.json({ folders });
@@ -405,10 +407,8 @@ app.get("/api/folders", async (req, res) => {
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
 
-// ...
-
 // Process Book (The Core Pipeline)
-app.post("/api/books", upload.single("file"), async (req, res) => {
+router.post("/books", upload.single("file"), async (req, res) => {
   try {
     const bookId = uuidv4();
     let absolutePath = "";
@@ -465,6 +465,29 @@ app.post("/api/books", upload.single("file"), async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+// Manual Resume/Retry Endpoint
+router.post("/chapters/:id/retry", async (req, res) => {
+  try {
+    const chapterId = req.params.id;
+    const chapter = await storage.getChapter(chapterId);
+    if (!chapter) return res.status(404).json({ error: "Chapter not found" });
+
+    // Reset to pending or just run pipeline?
+    // runChapterPipeline handles 'failed' status by retrying from last valid step logic
+
+    // Respond immediately
+    res.json({ message: "Retry started" });
+
+    // Async execution
+    runChapterPipeline(chapter.bookId, chapterId);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// MOUNT ROUTER
+app.use(API_BASE, router);
 
 // --- Logic Implementation: RabbitMQ Orchestration ---
 
@@ -570,25 +593,44 @@ async function runFullPipeline(bookId, filePath, shouldDelete = false) {
   }
 }
 
-// Manual Resume/Retry Endpoint
-app.post("/api/chapters/:id/retry", async (req, res) => {
-  try {
-    const chapterId = req.params.id;
-    const chapter = await storage.getChapter(chapterId);
-    if (!chapter) return res.status(404).json({ error: "Chapter not found" });
+async function runChapterPipeline(bookId, chapterId) {
+  // Basic Retry Logic: Check status and publish next job
+  const chapter = await storage.getChapter(chapterId);
+  if (!chapter) return;
 
-    // Reset to pending or just run pipeline?
-    // runChapterPipeline handles 'failed' status by retrying from last valid step logic
-
-    // Respond immediately
-    res.json({ message: "Retry started" });
-
-    // Async execution
-    runChapterPipeline(chapter.bookId, chapterId);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+  // Simple heuristic: Try to find first pending/failed step
+  if (
+    chapter.overviewStatus !== "completed" &&
+    chapter.overviewStatus !== "skipped"
+  ) {
+    await rabbitmq.publishJob({
+      type: "overview",
+      bookId,
+      chapterId,
+      stage: "overview",
+    });
+  } else if (
+    chapter.analysisStatus !== "completed" &&
+    chapter.analysisStatus !== "skipped"
+  ) {
+    await rabbitmq.publishJob({
+      type: "analysis",
+      bookId,
+      chapterId,
+      stage: "analysis",
+    });
+  } else if (
+    chapter.notesStatus !== "completed" &&
+    chapter.notesStatus !== "skipped"
+  ) {
+    await rabbitmq.publishJob({
+      type: "notes",
+      bookId,
+      chapterId,
+      stage: "notes",
+    });
   }
-});
+}
 
 // --- Server Startup ---
 async function startServer() {
