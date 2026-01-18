@@ -13,6 +13,13 @@ npm install
 cd client && npm install
 cd ..
 
+# 3. Install PM2 (Process Manager)
+echo "⚙️ Checking for PM2..."
+command -v pm2 >/dev/null 2>&1 || {
+    echo "⬇️ PM2 not found. Installing globally..."
+    npm install -g pm2 || { echo "⚠️ Global install failed. Trying local install..."; npm install pm2; }
+}
+
 # 3. Platform Specific Setup (TTS)
 OS="$(uname -s)"
 ARCH="$(uname -m)"

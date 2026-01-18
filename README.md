@@ -53,14 +53,14 @@ This application uses a hybrid TTS approach to behave optimally on different ope
 ## 🛠 Deployment on Ubuntu Server
 
 1. Clone repository.
-2. Run `./setup.sh` (This downloads the required Piper binary for `x86_64` or `arm64`).
-3. Run `./start.sh` (Ensure ports 3001 and 5173 are open or reverse-proxied).
+2. Run `./setup.sh` (Installs dependencies, PM2, and Piper TTS).
+3. Run `./start.sh` (Starts services using PM2 under names `crumbbase-api` and `crumbbase-client`).
+4. Monitor with `pm2 status` or `pm2 monit`.
 
 ## 📂 Project Structure
 
 - `client/`: React/Vite Frontend.
 - `server/`: Node.js Express Backend.
-  - `services/tts-service.js`: Handles OS-specific TTS logic.
-  - `worker.js`: Background job processor (RabbitMQ integration).
+- `ecosystem.config.js`: PM2 Configuration.
 - `setup.sh`: Environment bootstrapper.
 - `start.sh`: Runner script.

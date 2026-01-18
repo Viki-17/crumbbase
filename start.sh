@@ -1,30 +1,23 @@
 #!/bin/bash
 
-# Function to kill child processes on exit
-cleanup() {
-    echo "🛑 Shutting down..."
-    kill $(jobs -p) 2>/dev/null
-    exit
-}
+echo "🚀 Starting Crumbbase with PM2..."
 
-trap cleanup SIGINT SIGTERM
+# Check if PM2 is installed
+if ! command -v pm2 &> /dev/null; then
+    echo "❌ PM2 could not be found. Please run ./setup.sh first."
+    exit 1
+fi
 
-echo "🚀 Starting Project Book..."
+# Create logs directory if it doesn't exist
+mkdir -p logs
 
-# 1. Start Backend
-echo "⚙️ Starting Backend Server..."
-# Ensure we are in root
-node server/index.js &
-SERVER_PID=$!
+# Start using ecosystem file
+pm2 start ecosystem.config.js
 
-# 2. Start Frontend
-echo "🎨 Starting Frontend..."
-# Check if we should run dev or preview
-# For deployment, usually 'npm run preview' (if built) or 'npm run dev' (if debugging)
-# User request says "dev in mac, deployed in ubuntu", likely want simple start.
-# Let's default to dev for now as per "npm run dev" usage in history.
-cd client && npm run dev &
-CLIENT_PID=$!
+# Save list (optional, good for server persistence)
+# pm2 save
 
-# Wait for processes
-wait $SERVER_PID $CLIENT_PID
+echo "✅ Crumbbase started!"
+echo "📊 Run 'pm2 status' to see process status."
+echo "📝 Logs are in ./logs/"
+echo "🛑 To stop: 'pm2 stop ecosystem.config.js' or 'pm2 stop all'"
