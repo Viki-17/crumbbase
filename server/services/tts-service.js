@@ -1,3 +1,8 @@
+const { spawn } = require("child_process");
+const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
+
 const AUDIO_DIR = path.join(__dirname, "../uploads/audio");
 
 // Piper Configuration (for Linux/Non-Mac)
