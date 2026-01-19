@@ -164,7 +164,7 @@ async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
     `;
 
   const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
-  console.log("prompt", prompt);
+  console.log("[AI Service] Generating structured summary...");
   try {
     const response = await ollama.chat({
       model: "gemma3:4b",
@@ -172,8 +172,28 @@ async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
       format: "json",
       stream: false,
     });
-    console.log(response);
-    return JSON.parse(response.message.content);
+
+    const parsed = JSON.parse(response.message.content);
+    console.log(
+      "[AI Service] Structured summary response:",
+      JSON.stringify(parsed).substring(0, 300)
+    );
+
+    // Validate the response has required fields
+    if (
+      !parsed.mainIdea &&
+      (!parsed.keyConcepts || parsed.keyConcepts.length === 0)
+    ) {
+      console.error(
+        "[AI Service] Structured summary missing required fields:",
+        parsed
+      );
+      throw new Error(
+        "AI returned invalid structured summary - missing mainIdea and keyConcepts"
+      );
+    }
+
+    return parsed;
   } catch (error) {
     console.error("AI Service Error (Summary):", error);
     throw error;

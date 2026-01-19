@@ -218,6 +218,19 @@ async function handleNotes(bookId, chapterId) {
   if (!chapter) return;
 
   console.log(`[Worker] Generating Notes for ${chapterId}`);
+
+  // Check if analysis was completed - notes require analysis data
+  if (chapter.analysisStatus !== "completed") {
+    console.warn(
+      `[Worker] Analysis not completed for ${chapterId}, status: ${chapter.analysisStatus}`
+    );
+    throw new Error(
+      `Cannot generate notes - analysis stage is ${
+        chapter.analysisStatus || "pending"
+      }. Run analysis first.`
+    );
+  }
+
   await updateChapter(chapterId, { notesStatus: "processing" });
   rabbitmq.publishEvent({
     type: "stageStatus",
@@ -228,14 +241,24 @@ async function handleNotes(bookId, chapterId) {
   });
 
   const summary = await getChapterSummary(chapter.summaryId);
-  if (!summary) throw new Error("Summary missing for notes generation");
+  if (!summary)
+    throw new Error("Summary document missing for notes generation");
 
-  // Validate summary has required fields
+  // Log what we have in the summary
+  console.log(`[Worker] Summary for ${chapterId}:`, {
+    hasMainIdea: !!summary.mainIdea,
+    keyConceptsCount: summary.keyConcepts?.length || 0,
+    examplesCount: summary.examples?.length || 0,
+  });
+
+  // Validate summary has required fields from analysis stage
   if (
     !summary.mainIdea &&
     (!summary.keyConcepts || summary.keyConcepts.length === 0)
   ) {
-    throw new Error("Summary has no usable content for notes generation");
+    throw new Error(
+      "Summary has no usable content for notes generation - analysis may have failed"
+    );
   }
 
   // Clear existing
