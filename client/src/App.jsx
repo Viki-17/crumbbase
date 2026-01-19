@@ -121,7 +121,11 @@ function App() {
 
       case "book":
         return selectedBookId ? (
-          <BookDashboard bookId={selectedBookId} onDelete={handleDeleteBook} />
+          <BookDashboard
+            key={selectedBookId}
+            bookId={selectedBookId}
+            onDelete={handleDeleteBook}
+          />
         ) : (
           <div className="main-content-empty">
             Select a book from the sidebar

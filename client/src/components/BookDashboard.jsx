@@ -37,15 +37,9 @@ const BookDashboard = ({ bookId, onDelete }) => {
   const hasAutoSelected = useRef(false);
 
   // Fetch Logic
-  const fetchBook = async () => {
+  const fetchBook = async (signal) => {
     try {
-      // (Removed invalid selectedChapter check)
-      // Replaced pure axios with api instance
-      // Note: api.get already has baseURL /api
-      // Original: axios.get(`/api/books/${bookId}`)
-      // New: api.get(`/books/${bookId}`) -- Wait, if baseURL is /api, then we need /books/${bookId}
-
-      const response = await api.get(`/books/${bookId}`);
+      const response = await api.get(`/books/${bookId}`, { signal });
       setBook(response.data);
 
       if (
@@ -57,17 +51,25 @@ const BookDashboard = ({ bookId, onDelete }) => {
         hasAutoSelected.current = true;
       }
     } catch (err) {
-      console.error("Failed to fetch book", err);
+      if (
+        !api.isCancel(err) &&
+        err.name !== "CanceledError" &&
+        err.name !== "AbortError"
+      ) {
+        console.error("Failed to fetch book", err);
+      }
     }
   };
 
   useEffect(() => {
+    const controller = new AbortController();
     hasAutoSelected.current = false;
     setSelectedChapterId(null);
     setBook(null);
     setStreamingOverviews({});
     setLoadingStep(null);
-    fetchBook();
+
+    fetchBook(controller.signal);
 
     const interval = setInterval(() => {
       setBook((prev) => {
@@ -75,12 +77,15 @@ const BookDashboard = ({ bookId, onDelete }) => {
           clearInterval(interval);
           return prev;
         }
-        fetchBook();
+        fetchBook(controller.signal);
         return prev;
       });
     }, 3000);
 
-    return () => clearInterval(interval);
+    return () => {
+      controller.abort();
+      clearInterval(interval);
+    };
   }, [bookId]);
 
   useEffect(() => {
