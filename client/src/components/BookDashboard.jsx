@@ -841,17 +841,17 @@ const BookDashboard = ({ bookId, onDelete }) => {
       </div>
 
       {/* Overall Analysis Section */}
-      {book.overallAnalysis && (
-        <div className="card" style={{ marginTop: "2rem" }}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "1rem",
-            }}
-          >
-            <h2 style={{ margin: 0 }}>📘 Overall Book Analysis</h2>
+      <div className="card" style={{ marginTop: "2rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "1rem",
+          }}
+        >
+          <h2 style={{ margin: 0 }}>📘 Overall Book Analysis</h2>
+          {book.overallAnalysis && (
             <button
               onClick={handleRegenerateAnalysis}
               style={{
@@ -864,7 +864,10 @@ const BookDashboard = ({ bookId, onDelete }) => {
             >
               🔄 Regenerate
             </button>
-          </div>
+          )}
+        </div>
+
+        {book.overallAnalysis ? (
           <div
             style={{
               display: "grid",
@@ -901,8 +904,27 @@ const BookDashboard = ({ bookId, onDelete }) => {
               </ul>
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              border: "1px dashed var(--border-color)",
+              borderRadius: "8px",
+            }}
+          >
+            <p style={{ marginBottom: "1rem", opacity: 0.7 }}>
+              Overall book analysis not generated yet.
+            </p>
+            <button
+              onClick={handleRegenerateAnalysis}
+              style={{ background: "var(--primary-color)" }}
+            >
+              Generate Book Analysis
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
