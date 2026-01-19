@@ -568,6 +568,18 @@ router.post("/books", upload.single("file"), async (req, res) => {
       const text = await extractTextFromPDF(absolutePath);
       const textChunks = splitIntoChapters(text);
       await processBookWithChunks(bookId, textChunks);
+
+      // Cleanup: Delete the uploaded PDF after successful processing
+      try {
+        if (fs.existsSync(absolutePath)) {
+          fs.unlinkSync(absolutePath);
+          console.log(`[Server] Deleted uploaded PDF: ${absolutePath}`);
+        }
+      } catch (cleanupErr) {
+        console.error(
+          `[Server] Failed to delete uploaded PDF: ${cleanupErr.message}`
+        );
+      }
     }
   } catch (err) {
     console.error(err);
