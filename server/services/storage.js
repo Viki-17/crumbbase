@@ -197,6 +197,18 @@ const getAnalysis = async (bookId) => {
   return doc || null;
 };
 
+const deleteAnalysis = async (bookId) => {
+  await ensureConnected();
+  await Analysis.deleteOne({ bookId });
+};
+
+const deleteChapterSummary = async (id) => {
+  await ensureConnected();
+  if (id) {
+    await Summary.deleteOne({ id });
+  }
+};
+
 // --- Graph Operations ---
 const getGraph = async () => {
   await ensureConnected();
@@ -334,6 +346,8 @@ module.exports = {
   // Analysis
   saveAnalysis,
   getAnalysis,
+  deleteAnalysis,
+  deleteChapterSummary,
   // Graph
   getGraph,
   saveGraph,

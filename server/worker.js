@@ -230,12 +230,24 @@ async function handleNotes(bookId, chapterId) {
   const summary = await getChapterSummary(chapter.summaryId);
   if (!summary) throw new Error("Summary missing for notes generation");
 
+  // Validate summary has required fields
+  if (
+    !summary.mainIdea &&
+    (!summary.keyConcepts || summary.keyConcepts.length === 0)
+  ) {
+    throw new Error("Summary has no usable content for notes generation");
+  }
+
   // Clear existing
   await deleteNotesByChapter(bookId, chapterId);
 
+  // Pass complete summary to generate better notes
   const notesData = await aiService.generateAtomicNotes({
-    mainIdea: summary.mainIdea,
-    keyConcepts: summary.keyConcepts,
+    mainIdea: summary.mainIdea || "",
+    keyConcepts: summary.keyConcepts || [],
+    examples: summary.examples || [],
+    mentalModels: summary.mentalModels || [],
+    lifeLessons: summary.lifeLessons || [],
   });
 
   if (await isCancelled(bookId, chapterId)) return;
@@ -306,6 +318,9 @@ async function handleBookAnalysis(bookId, payload) {
   const book = await getBook(bookId);
   if (!book) return;
 
+  // If force flag is set, skip the "all done" check and regenerate
+  const forceRegenerate = payload?.force === true;
+
   // Check if all chapters are done
   // We need to fetch all chapters
   let allDone = true;
@@ -317,9 +332,21 @@ async function handleBookAnalysis(bookId, payload) {
   for (const chapId of book.chapters) {
     const chap = await getChapter(chapId);
     if (!chap) continue;
-    if (chap.status !== "completed" && chap.status !== "skipped") {
-      allDone = false;
-      break;
+
+    // Check granular stage statuses instead of just chapter status
+    const overviewDone =
+      chap.overviewStatus === "completed" || chap.overviewStatus === "skipped";
+    const analysisDone =
+      chap.analysisStatus === "completed" || chap.analysisStatus === "skipped";
+    const notesDone =
+      chap.notesStatus === "completed" || chap.notesStatus === "skipped";
+    const chapterComplete = overviewDone && analysisDone && notesDone;
+
+    if (!chapterComplete) {
+      if (!forceRegenerate) {
+        allDone = false;
+        break;
+      }
     }
     if (chap.summaryId) {
       const sum = await getChapterSummary(chap.summaryId);
@@ -327,8 +354,14 @@ async function handleBookAnalysis(bookId, payload) {
     }
   }
 
-  if (!allDone) {
+  if (!allDone && !forceRegenerate) {
     // nothing to do yet
+    return;
+  }
+
+  // Need at least some summaries to generate analysis
+  if (allSummaries.length === 0) {
+    console.log(`[Worker] No summaries available for book analysis: ${bookId}`);
     return;
   }
 

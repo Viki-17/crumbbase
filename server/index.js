@@ -175,6 +175,79 @@ router.delete("/books/:id", async (req, res) => {
   }
 });
 
+// Global Book Regeneration
+router.post("/books/:id/regenerate", async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const book = await storage.getBook(bookId);
+    if (!book) return res.status(404).json({ error: "Book not found" });
+
+    // Reset all chapters and clear data
+    for (const chapId of book.chapters || []) {
+      const chapter = await storage.getChapter(chapId);
+      if (!chapter) continue;
+
+      // Clear existing notes for this chapter
+      await storage.deleteNotesByChapter(bookId, chapId);
+
+      // Clear existing summary
+      if (chapter.summaryId) {
+        await storage.deleteChapterSummary(chapter.summaryId);
+      }
+
+      // Reset chapter statuses
+      await storage.updateChapter(chapId, {
+        summaryId: null,
+        overviewStatus: "pending",
+        analysisStatus: "pending",
+        notesStatus: "pending",
+        status: "pending",
+      });
+
+      // Publish job
+      await rabbitmq.publishJob({
+        type: "overview",
+        bookId,
+        chapterId: chapId,
+        stage: "overview",
+      });
+    }
+
+    // Delete existing book analysis
+    await storage.deleteAnalysis(bookId);
+
+    // Update book status
+    await storage.saveBook({ ...book, status: "processing" });
+
+    res.json({ message: "Book regeneration started" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Book Analysis Regeneration
+router.post("/books/:id/regenerate-analysis", async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const book = await storage.getBook(bookId);
+    if (!book) return res.status(404).json({ error: "Book not found" });
+
+    // Delete existing analysis
+    await storage.deleteAnalysis(bookId);
+
+    // Publish book analysis job with force flag
+    await rabbitmq.publishJob({
+      type: "book_analysis",
+      bookId,
+      payload: { force: true },
+    });
+
+    res.json({ message: "Analysis regeneration started" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Pick File
 router.get("/system/pick-file", (req, res) => {
   const script = `

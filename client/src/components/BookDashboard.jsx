@@ -224,6 +224,33 @@ const BookDashboard = ({ bookId, onDelete }) => {
     }
   };
 
+  const handleRegenerateBook = async () => {
+    if (
+      !window.confirm(
+        "This will regenerate all AI content for this book. Continue?"
+      )
+    ) {
+      return;
+    }
+    try {
+      await api.post(`/books/${bookId}/regenerate`);
+      toast.success("Book regeneration started");
+      fetchBook();
+    } catch (err) {
+      toast.error("Failed to start regeneration");
+    }
+  };
+
+  const handleRegenerateAnalysis = async () => {
+    try {
+      await api.post(`/books/${bookId}/regenerate-analysis`);
+      toast.success("Analysis regeneration started");
+      fetchBook();
+    } catch (err) {
+      toast.error("Failed to regenerate analysis");
+    }
+  };
+
   const handleListen = async () => {
     if (!selectedChapterId) return;
 
@@ -493,12 +520,20 @@ const BookDashboard = ({ bookId, onDelete }) => {
                 ⚡ {statusMsg}
               </div>
             )}
-            <button
-              onClick={handleDelete}
-              style={{ background: "#ef4444", fontSize: "0.8rem" }}
-            >
-              Delete Book
-            </button>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={handleRegenerateBook}
+                style={{ background: "#f59e0b", fontSize: "0.8rem" }}
+              >
+                🔄 Regenerate All
+              </button>
+              <button
+                onClick={handleDelete}
+                style={{ background: "#ef4444", fontSize: "0.8rem" }}
+              >
+                Delete Book
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -635,9 +670,21 @@ const BookDashboard = ({ bookId, onDelete }) => {
                         style={{
                           display: "flex",
                           justifyContent: "flex-end",
+                          gap: "0.5rem",
                           marginBottom: "1rem",
                         }}
                       >
+                        <button
+                          onClick={() => handleGenerate("overview")}
+                          style={{
+                            background: "#f59e0b",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          🔄 Regenerate
+                        </button>
                         <button
                           onClick={handleListen}
                           disabled={isAudioLoading}
@@ -670,6 +717,25 @@ const BookDashboard = ({ bookId, onDelete }) => {
                 (summary?.mainIdea &&
                 selectedChapter.analysisStatus !== "skipped" ? (
                   <div className="markdown-content">
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        marginBottom: "1rem",
+                      }}
+                    >
+                      <button
+                        onClick={() => handleGenerate("analysis")}
+                        style={{
+                          background: "#f59e0b",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px",
+                        }}
+                      >
+                        🔄 Regenerate
+                      </button>
+                    </div>
                     <h3>🎯 Main Idea</h3>
                     <p>{summary.mainIdea}</p>
 
@@ -722,22 +788,43 @@ const BookDashboard = ({ bookId, onDelete }) => {
                 <div>
                   {chapterNotes.length > 0 &&
                   selectedChapter.notesStatus !== "skipped" ? (
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns:
-                          "repeat(auto-fill, minmax(280px, 1fr))",
-                        gap: "1rem",
-                      }}
-                    >
-                      {chapterNotes.map((note) => (
-                        <NoteCard
-                          key={note.id}
-                          note={note}
-                          onUpdate={handleUpdateNote}
-                          onDeleteNote={handleDeleteNote}
-                        />
-                      ))}
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          marginBottom: "1rem",
+                        }}
+                      >
+                        <button
+                          onClick={() => handleGenerate("notes")}
+                          style={{
+                            background: "#f59e0b",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "6px",
+                          }}
+                        >
+                          🔄 Regenerate
+                        </button>
+                      </div>
+                      <div
+                        style={{
+                          display: "grid",
+                          gridTemplateColumns:
+                            "repeat(auto-fill, minmax(280px, 1fr))",
+                          gap: "1rem",
+                        }}
+                      >
+                        {chapterNotes.map((note) => (
+                          <NoteCard
+                            key={note.id}
+                            note={note}
+                            onUpdate={handleUpdateNote}
+                            onDeleteNote={handleDeleteNote}
+                          />
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     renderGenerateButton("notes", "Generate Notes")
@@ -756,7 +843,28 @@ const BookDashboard = ({ bookId, onDelete }) => {
       {/* Overall Analysis Section */}
       {book.overallAnalysis && (
         <div className="card" style={{ marginTop: "2rem" }}>
-          <h2>📘 Overall Book Analysis</h2>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+            }}
+          >
+            <h2 style={{ margin: 0 }}>📘 Overall Book Analysis</h2>
+            <button
+              onClick={handleRegenerateAnalysis}
+              style={{
+                background: "#f59e0b",
+                fontSize: "0.8rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+              }}
+            >
+              🔄 Regenerate
+            </button>
+          </div>
           <div
             style={{
               display: "grid",

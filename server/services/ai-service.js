@@ -181,25 +181,52 @@ async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
 }
 
 async function generateAtomicNotes(chapterSummaryJSON) {
+  // Validate input - log warning if summary is mostly empty
+  const hasContent =
+    chapterSummaryJSON.mainIdea ||
+    (chapterSummaryJSON.keyConcepts &&
+      chapterSummaryJSON.keyConcepts.length > 0) ||
+    (chapterSummaryJSON.examples && chapterSummaryJSON.examples.length > 0);
+
+  if (!hasContent) {
+    console.warn(
+      "[AI Service] generateAtomicNotes received empty summary:",
+      JSON.stringify(chapterSummaryJSON)
+    );
+    return [];
+  }
+
+  console.log(
+    "[AI Service] Generating atomic notes from summary:",
+    JSON.stringify(chapterSummaryJSON).substring(0, 200)
+  );
+
   const prompt = `
     You are helping build a personal knowledge base using the Zettelkasten method.
 
     TASK:
-    Convert the structured chapter summary into atomic knowledge notes.
+    Convert the structured chapter summary below into atomic knowledge notes.
+    Each note should capture ONE key insight, concept, or principle from the summary.
+
+    IMPORTANT:
+    - Generate notes ONLY based on the content provided in CHAPTER SUMMARY below.
+    - Do NOT generate generic notes about Zettelkasten or note-taking methods.
+    - Focus on the actual topics, concepts, and ideas from the summary.
 
     RULES:
-    - Each note must represent ONE independent idea.
+    - Each note must represent ONE independent idea from the summary.
     - Notes must be reusable across contexts.
     - Avoid book-specific phrasing (e.g., "In this chapter...").
     - Keep each note under 120 words.
+    - Generate 3-8 notes depending on content richness.
     - Output ONLY valid JSON array.
 
     JSON FORMAT:
     [
       {
-        "title": "String",
-        "content": "String",
-        "tags": ["String"]
+        "title": "String - A clear, descriptive title for the concept",
+        "content": "String - The key insight or explanation",
+        "tags": ["String - relevant topic tags"]
       }
     ]
 
@@ -216,8 +243,14 @@ async function generateAtomicNotes(chapterSummaryJSON) {
     });
 
     const parsed = JSON.parse(response.message.content);
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed.notes && Array.isArray(parsed.notes)) return parsed.notes;
+    if (Array.isArray(parsed)) {
+      console.log(`[AI Service] Generated ${parsed.length} atomic notes`);
+      return parsed;
+    }
+    if (parsed.notes && Array.isArray(parsed.notes)) {
+      console.log(`[AI Service] Generated ${parsed.notes.length} atomic notes`);
+      return parsed.notes;
+    }
     // Handle single object return
     if (
       parsed &&
@@ -227,6 +260,10 @@ async function generateAtomicNotes(chapterSummaryJSON) {
     ) {
       return [parsed];
     }
+    console.warn(
+      "[AI Service] generateAtomicNotes returned unexpected format:",
+      parsed
+    );
     return [];
   } catch (error) {
     console.error("AI Service Error (Notes):", error);
