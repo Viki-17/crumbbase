@@ -1,49 +1,15 @@
 const fs = require("fs");
-const pdf = require("pdf-parse");
+const pdfStructure = require("./pdf-structure");
 
 // --- 1. Page-Aware Extraction ---
 
 async function extractTextFromPDF(filePath) {
-  const dataBuffer = fs.readFileSync(filePath);
-
-  // Custom render to inject page markers
-  // This allows us to map text back to page numbers easily
-  const options = {
-    pagerender: function (pageData) {
-      let render_options = {
-        normalizeWhitespace: false,
-        disableCombineTextItems: false,
-      };
-
-      return pageData
-        .getTextContent(render_options)
-        .then(function (textContent) {
-          let lastY,
-            text = "";
-          for (let item of textContent.items) {
-            if (lastY == item.transform[5] || !lastY) {
-              text += item.str;
-            } else {
-              text += "\n" + item.str;
-            }
-            lastY = item.transform[5];
-          }
-          // Marker format: ###PAGE_START_1###
-          return `\n###PAGE_START_${
-            pageData.pageIndex + 1
-          }###\n${text}\n###PAGE_END_${pageData.pageIndex + 1}###\n`;
-        });
-    },
-  };
-
   try {
-    const data = await pdf(dataBuffer, options);
-    return data.text;
+    const data = await pdfStructure.parsePDF(filePath);
+    return data; // Returns { text, outline, info, pageCount }
   } catch (e) {
     console.error("PDF Read Error:", e);
-    // Fallback to default if render fails (unlikely)
-    const data = await pdf(dataBuffer);
-    return data.text;
+    throw e;
   }
 }
 
@@ -171,8 +137,31 @@ function splitByFallback(text) {
   return chunks;
 }
 
-function splitIntoChapters(text) {
-  // 1. Try ToC Splitting
+function splitIntoChapters(input) {
+  let text = input;
+  let outline = null;
+
+  // Handle object input (new format)
+  if (typeof input === "object" && input.text) {
+    text = input.text;
+    outline = input.outline;
+  }
+
+  // 0. Try Official Outline Splitting (Gold Standard)
+  if (outline && outline.length > 2) {
+    // Flatten recursive outline if needed, but pdf-structure returns flattened list
+    // Filter items with valid page numbers
+    const validOutline = outline.filter((item) => item.page);
+    if (validOutline.length > 0) {
+      console.log(
+        `Splitting by Official Outline (${validOutline.length} chapters)`
+      );
+      const chunks = splitByToC(text, validOutline);
+      if (chunks) return chunks;
+    }
+  }
+
+  // 1. Try Regex Text ToC Splitting (Fallback if outline missing)
   const toc = parseToC(text);
   if (toc.length > 2) {
     const tocChunks = splitByToC(text, toc);

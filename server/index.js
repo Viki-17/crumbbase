@@ -55,13 +55,47 @@ const router = express.Router();
 router.get("/books", async (req, res) => {
   try {
     const allBooks = await storage.getAllBooks();
-    const books = allBooks.map((b) => ({
-      id: b.id,
-      title: b.title,
-      status: b.status,
-      chunkCount: b.chapters ? b.chapters.length : 0,
-    }));
-    res.json(books);
+
+    // For each book, compute effective status based on chapter completion
+    const booksWithEffectiveStatus = await Promise.all(
+      allBooks.map(async (b) => {
+        let effectiveStatus = b.status;
+
+        // If book has chapters, check if all are actually done
+        if (b.chapters && b.chapters.length > 0) {
+          const chapters = await Promise.all(
+            b.chapters.map((chapId) => storage.getChapter(chapId))
+          );
+
+          const allChaptersDone = chapters.every((chap) => {
+            if (!chap) return false;
+            const overviewDone =
+              chap.overviewStatus === "completed" ||
+              chap.overviewStatus === "skipped";
+            const analysisDone =
+              chap.analysisStatus === "completed" ||
+              chap.analysisStatus === "skipped";
+            const notesDone =
+              chap.notesStatus === "completed" ||
+              chap.notesStatus === "skipped";
+            return overviewDone && analysisDone && notesDone;
+          });
+
+          if (allChaptersDone) {
+            effectiveStatus = "done";
+          }
+        }
+
+        return {
+          id: b.id,
+          title: b.title,
+          status: effectiveStatus,
+          chunkCount: b.chapters ? b.chapters.length : 0,
+        };
+      })
+    );
+
+    res.json(booksWithEffectiveStatus);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -433,11 +467,15 @@ router.post("/books", upload.single("file"), async (req, res) => {
 
     console.log(`Processing Book: ${bookId}`);
 
+    // Parse bookType from request (default to 'nonfiction' for backward compat)
+    const bookType = req.body.bookType === "fiction" ? "fiction" : "nonfiction";
+
     const book = {
       id: bookId,
       type: "book",
       title: req.file ? req.file.originalname : "Transcript Upload",
       path: isTranscript ? "TRANSCRIPT" : absolutePath, // path is less relevant for transcript
+      bookType: bookType, // 'fiction' or 'nonfiction'
       createdAt: new Date().toISOString(),
       status: "processing",
       chapters: [],

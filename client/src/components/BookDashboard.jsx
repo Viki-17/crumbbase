@@ -430,33 +430,56 @@ const BookDashboard = ({ bookId, onDelete }) => {
               <span className="text-secondary">
                 {book.chapters?.length} Chapters
               </span>
-              <span
-                className={`status-badge status-${book.status}`}
-                style={{
-                  fontSize: "0.75rem",
-                  padding: "2px 8px",
-                  borderRadius: "12px",
-                  background:
-                    book.status === "processing"
-                      ? "rgba(245, 158, 11, 0.2)"
-                      : book.status === "done"
-                      ? "rgba(16, 185, 129, 0.2)"
-                      : "rgba(239, 68, 68, 0.2)",
-                  color:
-                    book.status === "processing"
-                      ? "#fbbf24"
-                      : book.status === "done"
-                      ? "#34d399"
-                      : "#f87171",
-                  border: "1px solid currentColor",
-                }}
-              >
-                {book.status === "processing"
-                  ? "⏳ Processing"
-                  : book.status === "done"
-                  ? "✅ Ready"
-                  : "Error"}
-              </span>
+              {(() => {
+                // Compute effective status: check if all chapters are actually done
+                const allChaptersDone = book.chapters?.every((chap) => {
+                  const overviewDone =
+                    chap.overviewStatus === "completed" ||
+                    chap.overviewStatus === "skipped";
+                  const analysisDone =
+                    chap.analysisStatus === "completed" ||
+                    chap.analysisStatus === "skipped";
+                  const notesDone =
+                    chap.notesStatus === "completed" ||
+                    chap.notesStatus === "skipped";
+                  return overviewDone && analysisDone && notesDone;
+                });
+
+                const effectiveStatus =
+                  allChaptersDone && book.chapters?.length > 0
+                    ? "done"
+                    : book.status;
+
+                return (
+                  <span
+                    className={`status-badge status-${effectiveStatus}`}
+                    style={{
+                      fontSize: "0.75rem",
+                      padding: "2px 8px",
+                      borderRadius: "12px",
+                      background:
+                        effectiveStatus === "processing"
+                          ? "rgba(245, 158, 11, 0.2)"
+                          : effectiveStatus === "done"
+                          ? "rgba(16, 185, 129, 0.2)"
+                          : "rgba(239, 68, 68, 0.2)",
+                      color:
+                        effectiveStatus === "processing"
+                          ? "#fbbf24"
+                          : effectiveStatus === "done"
+                          ? "#34d399"
+                          : "#f87171",
+                      border: "1px solid currentColor",
+                    }}
+                  >
+                    {effectiveStatus === "processing"
+                      ? "⏳ Processing"
+                      : effectiveStatus === "done"
+                      ? "✅ Ready"
+                      : "Error"}
+                  </span>
+                );
+              })()}
             </div>
           </div>
           <div style={{ textAlign: "right" }}>

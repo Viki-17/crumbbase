@@ -29,22 +29,50 @@ function parseJSON(text) {
   }
 }
 
-async function generateChapterOverview(chapterText, onToken) {
-  const prompt = `
-    You are an expert storyteller and analyst.
+async function generateChapterOverview(
+  chapterText,
+  bookType = "nonfiction",
+  onToken
+) {
+  const isFiction = bookType === "fiction";
+
+  const fictionPrompt = `
+    You are an expert literary analyst and storyteller.
     
     TASK:
-    Provide a comprehensive, engaging overview of the following chapter.
+    Provide a rich, engaging overview of the following chapter from a fiction book.
     Include:
-    1. A Narrative Summary of what happens.
-    2. Key Characters involved.
-    3. Essential Lessons or Takeaways.
+    1. **Plot Summary**: What happens in this chapter? Describe the key events and narrative progression.
+    2. **Character Focus**: Which characters appear? What are their motivations, conflicts, or development in this chapter?
+    3. **Setting & Atmosphere**: Describe the setting and emotional tone. What mood does the author create?
+    4. **Themes & Symbolism**: Identify any themes, motifs, or symbolic elements present.
+    5. **Foreshadowing & Tension**: Note any hints about future events or unresolved tensions.
     
-    Format nicely in Markdown.
+    Write in an engaging, narrative style. Format nicely in Markdown.
     
     CHAPTER TEXT:
     "${chapterText.substring(0, 10000)}"
     `;
+
+  const nonfictionPrompt = `
+    You are an expert analyst and knowledge synthesizer.
+    
+    TASK:
+    Provide a comprehensive, actionable overview of the following chapter from a non-fiction book.
+    Include:
+    1. **Core Argument**: What is the main point or thesis of this chapter?
+    2. **Key Insights**: What are the most important ideas, concepts, or findings presented?
+    3. **Evidence & Examples**: What evidence, case studies, or examples does the author use to support their points?
+    4. **Practical Applications**: How can the reader apply these ideas in real life?
+    5. **Critical Takeaways**: What should the reader remember from this chapter?
+    
+    Be concise but thorough. Format nicely in Markdown.
+    
+    CHAPTER TEXT:
+    "${chapterText.substring(0, 10000)}"
+    `;
+
+  const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
 
   try {
     const response = await ollama.chat({
@@ -68,12 +96,21 @@ async function generateChapterOverview(chapterText, onToken) {
   }
 }
 
-async function generateStructuredSummary(chapterText) {
-  const prompt = `
-    You are an assistant that summarizes book chapters into structured knowledge.
+async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
+  const isFiction = bookType === "fiction";
+
+  const fictionPrompt = `
+    You are an expert literary analyst helping readers understand fiction deeply.
 
     TASK:
-    Summarize the following chapter into a structured JSON object.
+    Summarize the following chapter from a fiction book into a structured JSON object.
+
+    INTERPRETATION GUIDE (same JSON keys, fiction meaning):
+    - "mainIdea": The central theme, conflict, or narrative arc of this chapter.
+    - "keyConcepts": Key characters, relationships, or plot developments.
+    - "examples": Important scenes, dialogues, or pivotal moments.
+    - "mentalModels": Symbolic meanings, motifs, or literary devices used.
+    - "lifeLessons": Moral insights, character lessons, or universal truths conveyed.
 
     RULES:
     - Do NOT add information not present in the text.
@@ -93,6 +130,40 @@ async function generateStructuredSummary(chapterText) {
     CHAPTER TEXT:
     "${chapterText.substring(0, 15000)}" 
     `;
+
+  const nonfictionPrompt = `
+    You are an expert analyst helping readers extract actionable knowledge from non-fiction.
+
+    TASK:
+    Summarize the following chapter from a non-fiction book into a structured JSON object.
+
+    INTERPRETATION GUIDE (non-fiction meaning):
+    - "mainIdea": The central argument, thesis, or main point of this chapter.
+    - "keyConcepts": Core concepts, frameworks, or ideas introduced.
+    - "examples": Case studies, research findings, or real-world examples used.
+    - "mentalModels": Thinking frameworks, decision-making tools, or cognitive models presented.
+    - "lifeLessons": Actionable advice, practical takeaways, or behavioral recommendations.
+
+    RULES:
+    - Do NOT add information not present in the text.
+    - Be concise and meaningful.
+    - If a section is not applicable, return an empty array.
+    - Output ONLY valid JSON.
+
+    JSON FORMAT:
+    {
+      "mainIdea": "String",
+      "keyConcepts": ["String"],
+      "examples": ["String"],
+      "mentalModels": ["String"],
+      "lifeLessons": ["String"]
+    }
+
+    CHAPTER TEXT:
+    "${chapterText.substring(0, 15000)}" 
+    `;
+
+  const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
   console.log("prompt", prompt);
   try {
     const response = await ollama.chat({
@@ -163,19 +234,60 @@ async function generateAtomicNotes(chapterSummaryJSON) {
   }
 }
 
-async function generateOverallAnalysis(allSummaries) {
+async function generateOverallAnalysis(allSummaries, bookType = "nonfiction") {
   const combinedText = allSummaries.map((s) => JSON.stringify(s)).join("\n\n");
+  const isFiction = bookType === "fiction";
 
-  const prompt = `
-    You are synthesizing a complete book from chapter-level knowledge.
+  const fictionPrompt = `
+    You are a literary critic synthesizing insights from a complete fiction book.
 
     TASK:
-    Generate an overall book summary from the chapter summaries.
+    Generate an overall book analysis from the chapter summaries.
+
+    FOCUS ON:
+    - **Core Themes**: What major themes run through the entire story?
+    - **Character Arcs**: How do the main characters evolve from beginning to end?
+    - **Narrative Structure**: How does the plot build, climax, and resolve?
+    - **Author's Message**: What is the author trying to say about life, society, or humanity?
+
+    RULES:
+    - Synthesize across chapters, don't just list them.
+    - Capture the emotional and thematic journey.
+    - Output ONLY valid JSON.
+
+    JSON FORMAT:
+    {
+      "coreThemes": ["String"],
+      "keyTakeaways": ["String"],
+      "mentalModels": ["String"],
+      "practicalApplications": ["String"]
+    }
+
+    NOTE: For fiction, interpret the fields as:
+    - keyTakeaways: Key insights about characters, plot, or meaning
+    - mentalModels: Symbolic or thematic frameworks in the story
+    - practicalApplications: Life lessons or reflections from the narrative
+
+    CHAPTER SUMMARIES:
+    ${combinedText.substring(0, 20000)}
+    `;
+
+  const nonfictionPrompt = `
+    You are a knowledge synthesizer creating actionable insights from a complete non-fiction book.
+
+    TASK:
+    Generate an overall book analysis from the chapter summaries.
+
+    FOCUS ON:
+    - **Core Themes**: What recurring ideas appear across chapters?
+    - **Key Takeaways**: What are the most important lessons from this book?
+    - **Mental Models**: What thinking frameworks or decision-making tools does the author present?
+    - **Practical Applications**: How can readers apply these ideas in real life?
 
     RULES:
     - Focus on recurring ideas across chapters.
     - Do NOT repeat chapter summaries.
-    - Capture the author's worldview.
+    - Capture the author's worldview and philosophy.
     - Output ONLY valid JSON.
 
     JSON FORMAT:
@@ -189,6 +301,8 @@ async function generateOverallAnalysis(allSummaries) {
     CHAPTER SUMMARIES:
     ${combinedText.substring(0, 20000)}
     `;
+
+  const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
 
   try {
     const response = await ollama.chat({

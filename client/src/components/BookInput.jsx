@@ -5,6 +5,7 @@ const BookInput = ({ onBookAdded }) => {
   const [mode, setMode] = useState("pdf"); // 'pdf' or 'transcript'
   const [file, setFile] = useState(null);
   const [transcript, setTranscript] = useState("");
+  const [bookType, setBookType] = useState("nonfiction"); // 'fiction' or 'nonfiction'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -36,6 +37,7 @@ const BookInput = ({ onBookAdded }) => {
           return;
         }
         formData.append("file", file);
+        formData.append("bookType", bookType);
       } else {
         if (!transcript.trim()) {
           setError("Please paste a transcript.");
@@ -60,7 +62,7 @@ const BookInput = ({ onBookAdded }) => {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
-        response = await api.post("/books", { transcript });
+        response = await api.post("/books", { transcript, bookType });
       }
 
       onBookAdded(response.data.id);
@@ -68,6 +70,7 @@ const BookInput = ({ onBookAdded }) => {
       // Reset
       setFile(null);
       setTranscript("");
+      setBookType("nonfiction");
       // Reset file input value if possible, or just re-render
       document.getElementById("pdf-upload").value = "";
     } catch (err) {
@@ -164,6 +167,64 @@ const BookInput = ({ onBookAdded }) => {
             />
           </div>
         )}
+
+        {/* Book Type Selector */}
+        <div
+          style={{
+            marginTop: "15px",
+            padding: "12px",
+            border: "1px solid var(--border-color)",
+            borderRadius: "6px",
+            background: "var(--bg-secondary)",
+          }}
+        >
+          <p
+            style={{
+              fontSize: "0.85rem",
+              fontWeight: "bold",
+              marginBottom: "10px",
+              color: "var(--text-color)",
+            }}
+          >
+            📚 Book Type
+          </p>
+          <div style={{ display: "flex", gap: "20px" }}>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="radio"
+                name="bookType"
+                value="nonfiction"
+                checked={bookType === "nonfiction"}
+                onChange={(e) => setBookType(e.target.value)}
+              />
+              <span>📖 Non-Fiction</span>
+            </label>
+            <label
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                cursor: "pointer",
+              }}
+            >
+              <input
+                type="radio"
+                name="bookType"
+                value="fiction"
+                checked={bookType === "fiction"}
+                onChange={(e) => setBookType(e.target.value)}
+              />
+              <span>✨ Fiction</span>
+            </label>
+          </div>
+        </div>
 
         <div
           style={{

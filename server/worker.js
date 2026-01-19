@@ -92,7 +92,10 @@ async function handleOverview(bookId, chapterId) {
   const chapter = await getChapter(chapterId);
   if (!chapter) return;
 
-  console.log(`[Worker] Generating Overview for ${chapterId}`);
+  const book = await getBook(bookId);
+  const bookType = book?.bookType || "nonfiction"; // Default for backward compat
+
+  console.log(`[Worker] Generating Overview for ${chapterId} (${bookType})`);
 
   // Update Status
   await updateChapter(chapterId, { overviewStatus: "processing" });
@@ -112,11 +115,15 @@ async function handleOverview(bookId, chapterId) {
   // Let's stick to full completion for simplicity first, or chunk publishing if the library supports it easily.
   // ai-service supports onToken.
 
-  await aiService.generateChapterOverview(chapter.rawText, (token) => {
-    currentOverview += token;
-    // OPTIONAL: Publish stream event (might be too chatty for RabbitMQ? It's fine for local docker usually)
-    // rabbitmq.publishEvent({ type: "overviewStream", bookId, chapterId, token });
-  });
+  await aiService.generateChapterOverview(
+    chapter.rawText,
+    bookType,
+    (token) => {
+      currentOverview += token;
+      // OPTIONAL: Publish stream event (might be too chatty for RabbitMQ? It's fine for local docker usually)
+      // rabbitmq.publishEvent({ type: "overviewStream", bookId, chapterId, token });
+    }
+  );
 
   // 3. POST-EXECUTION CHECK
   if (await isCancelled(bookId, chapterId)) return;
@@ -163,7 +170,10 @@ async function handleAnalysis(bookId, chapterId) {
   const chapter = await getChapter(chapterId);
   if (!chapter) return;
 
-  console.log(`[Worker] Generating Analysis for ${chapterId}`);
+  const book = await getBook(bookId);
+  const bookType = book?.bookType || "nonfiction";
+
+  console.log(`[Worker] Generating Analysis for ${chapterId} (${bookType})`);
   await updateChapter(chapterId, { analysisStatus: "processing" });
   rabbitmq.publishEvent({
     type: "stageStatus",
@@ -174,7 +184,8 @@ async function handleAnalysis(bookId, chapterId) {
   });
 
   const summaryJSON = await aiService.generateStructuredSummary(
-    chapter.rawText
+    chapter.rawText,
+    bookType
   );
 
   if (await isCancelled(bookId, chapterId)) return;
@@ -327,7 +338,11 @@ async function handleBookAnalysis(bookId, payload) {
   ); // Avoiding circular dep issues if any, require inline ok?
   // We imported getAnalysis at top, let's use it.
 
-  console.log(`[Worker] generating overall book analysis for ${bookId}`);
+  console.log(
+    `[Worker] generating overall book analysis for ${bookId} (${
+      book.bookType || "nonfiction"
+    })`
+  );
 
   rabbitmq.publishEvent({
     type: "status",
@@ -336,7 +351,10 @@ async function handleBookAnalysis(bookId, payload) {
   });
 
   try {
-    const analysisJSON = await aiService.generateOverallAnalysis(allSummaries);
+    const analysisJSON = await aiService.generateOverallAnalysis(
+      allSummaries,
+      book.bookType || "nonfiction"
+    );
 
     if (await isCancelled(bookId)) return;
 
