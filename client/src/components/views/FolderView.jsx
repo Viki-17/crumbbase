@@ -26,11 +26,12 @@ const FolderView = ({ onSelectNote }) => {
       setLoading(true);
       const [foldersRes, notesRes] = await Promise.all([
         api.get("/folders"),
-        api.get("/notes"),
+        api.get("/notes?all=true"), // Get all notes, not paginated
       ]);
 
       setFolders(foldersRes.data.folders || []);
-      setAllNotes(notesRes.data);
+      // Handle paginated response - extract notes array
+      setAllNotes(notesRes.data.notes || notesRes.data || []);
     } catch (err) {
       console.error("Failed to fetch folders:", err);
     } finally {

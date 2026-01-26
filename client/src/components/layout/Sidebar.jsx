@@ -35,7 +35,14 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, []); // Only fetch on mount
+
+  useEffect(() => {
+    // Refresh data when relevant sections are expanded
+    if (sections.notes || sections.folders) {
+      fetchData();
+    }
+  }, [sections.notes, sections.folders]);
 
   useEffect(() => {
     // Count processing books
@@ -45,12 +52,13 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
 
   const fetchData = async () => {
     try {
+      // Use pagination to get just the count, not all notes
       const [notesRes, foldersRes] = await Promise.all([
-        api.get("/notes"),
+        api.get("/notes", { params: { page: 1, limit: 1 } }), // Just get count
         api.get("/folders"),
       ]);
 
-      setNotesCount(notesRes.data.length);
+      setNotesCount(notesRes.data.pagination?.total || 0);
       setFoldersCount(foldersRes.data.folders?.length || 0);
     } catch (err) {
       console.error("Sidebar data fetch error:", err);

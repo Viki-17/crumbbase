@@ -626,13 +626,21 @@ router.post("/books", upload.single("file"), async (req, res) => {
 
     // Parse bookType from request (default to 'nonfiction' for backward compat)
     const bookType = req.body.bookType === "fiction" ? "fiction" : "nonfiction";
+    // For transcripts, user can provide a title. For PDF, use filename.
+    const title = isTranscript
+      ? req.body.title || "Untitled Transcript"
+      : req.file.originalname;
+
+    // Optional: Transcript Source (youtube, blog, etc.)
+    const sourceType = req.body.sourceType || null;
 
     const book = {
       id: bookId,
       type: "book",
-      title: req.file ? req.file.originalname : "Transcript Upload",
+      title: title,
       path: isTranscript ? "TRANSCRIPT" : absolutePath, // path is less relevant for transcript
       bookType: bookType, // 'fiction' or 'nonfiction'
+      sourceType: sourceType, // 'youtube', 'blog', or null
       createdAt: new Date().toISOString(),
       status: "processing",
       chapters: [],
@@ -670,6 +678,23 @@ router.post("/books", upload.single("file"), async (req, res) => {
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path); // Cleanup on error
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update Book (e.g. Rename)
+router.patch("/books/:id", async (req, res) => {
+  try {
+    const { title } = req.body;
+    const book = await storage.getBook(req.params.id);
+    if (!book) return res.status(404).json({ error: "Book not found" });
+
+    const updatedBook = { ...book };
+    if (title) updatedBook.title = title;
+
+    await storage.saveBook(updatedBook);
+    res.json(updatedBook);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

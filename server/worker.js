@@ -74,10 +74,19 @@ async function processJob(job) {
         [`${stage}Status`]: "failed",
         error: err.message,
       });
+      // Publish stageStatus event so UI updates immediately
+      rabbitmq.publishEvent({
+        type: "stageStatus",
+        bookId,
+        chapterId,
+        stage,
+        status: "failed",
+      });
       rabbitmq.publishEvent({
         type: "error",
         bookId,
         chapterId,
+        stage,
         message: err.message,
       });
     } else if (bookId) {
@@ -89,6 +98,7 @@ async function processJob(job) {
         rabbitmq.publishEvent({ type: "error", bookId, message: err.message });
       }
     }
+    // DO NOT trigger next stage on failure - wait for manual retry
   }
 }
 
@@ -160,7 +170,7 @@ async function handleOverview(bookId, chapterId) {
     status: "completed",
   });
 
-  // 6. Trigger Next Step (Analysis)
+  // 6. Trigger Next Step (Analysis) - only if current stage succeeded
   rabbitmq.publishJob({
     type: "analysis",
     bookId,
@@ -212,7 +222,7 @@ async function handleAnalysis(bookId, chapterId) {
   });
   rabbitmq.publishEvent({ type: "chapterDone", bookId, chapterId, summary }); // Update UI
 
-  // Trigger Next Step (Notes)
+  // Trigger Next Step (Notes) - only if current stage succeeded
   rabbitmq.publishJob({ type: "notes", bookId, chapterId, stage: "notes" });
 }
 
@@ -438,8 +448,25 @@ async function handleBookAnalysis(bookId, payload) {
   }
 }
 
+// Global flag to prevent concurrent folder organization
+let isFolderOrganizing = false;
+
 async function handleFolderOrganize() {
   console.log("[Worker] Starting folder organization...");
+
+  // Prevent duplicate processing
+  if (isFolderOrganizing) {
+    console.log(
+      "[Worker] Folder organization already in progress, skipping...",
+    );
+    rabbitmq.publishEvent({
+      type: "foldersError",
+      error: "Organization already in progress",
+    });
+    return;
+  }
+
+  isFolderOrganizing = true;
 
   try {
     rabbitmq.publishEvent({
@@ -456,14 +483,38 @@ async function handleFolderOrganize() {
         folders: [],
         message: "No notes to organize",
       });
+      isFolderOrganizing = false;
       return;
     }
 
     console.log(`[Worker] Organizing ${notes.length} notes into folders...`);
 
-    const structure = await aiService.generateFolderStructure(notes);
+    // Progressive callback - saves and publishes after each batch
+    const onProgress = async (progress) => {
+      console.log(
+        `[Worker] Batch ${progress.batchNumber}/${progress.totalBatches} complete`,
+      );
+
+      // Save progressive results to DB
+      await saveFolders(progress.folders);
+
+      // Publish progress event to UI
+      rabbitmq.publishEvent({
+        type: "foldersProgress",
+        current: progress.batchNumber,
+        total: progress.totalBatches,
+        folders: progress.folders,
+        message: `Processing batch ${progress.batchNumber} of ${progress.totalBatches}...`,
+      });
+    };
+
+    const structure = await aiService.generateFolderStructure(
+      notes,
+      onProgress,
+    );
     const folders = structure.folders || [];
 
+    // Final save (redundant but ensures consistency)
     await saveFolders(folders);
 
     console.log(
@@ -473,7 +524,7 @@ async function handleFolderOrganize() {
     rabbitmq.publishEvent({
       type: "foldersDone",
       folders,
-      message: `Organization complete! Created ${folders.length} folders`,
+      message: `Organization complete! Created ${folders.length} folders.`,
     });
   } catch (err) {
     console.error("[Worker] Folder organization failed:", err);
@@ -481,6 +532,9 @@ async function handleFolderOrganize() {
       type: "foldersError",
       error: err.message,
     });
+  } finally {
+    // Always reset flag
+    isFolderOrganizing = false;
   }
 }
 

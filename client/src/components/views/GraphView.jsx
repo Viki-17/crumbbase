@@ -44,14 +44,15 @@ const GraphView = ({ onSelectNote }) => {
       setLoading(true);
       const [graphRes, notesRes] = await Promise.all([
         api.get("/graph"),
-        api.get("/notes"),
+        api.get("/notes?all=true"), // Get all notes, not paginated
       ]);
 
-      setAllNotes(notesRes.data);
+      // Handle paginated response - extract notes array
+      setAllNotes(notesRes.data.notes || notesRes.data || []);
       rawGraphData.current = graphRes.data;
 
       console.log("Graph Data Fetched:", {
-        nodes: notesRes.data.length,
+        nodes: (notesRes.data.notes || notesRes.data || []).length,
         edges: graphRes.data.edges?.length,
         edgesSample: graphRes.data.edges?.slice(0, 3),
       });
@@ -90,7 +91,7 @@ const GraphView = ({ onSelectNote }) => {
     }
 
     edges = edges.filter(
-      (e) => !e.confidence || e.confidence >= confidenceThreshold
+      (e) => !e.confidence || e.confidence >= confidenceThreshold,
     );
 
     console.log("Filtered Edges:", edges.length);
@@ -114,7 +115,7 @@ const GraphView = ({ onSelectNote }) => {
         onSelectNote(node.id);
       }
     },
-    [onSelectNote]
+    [onSelectNote],
   );
 
   const handleNodeHover = useCallback((node) => {

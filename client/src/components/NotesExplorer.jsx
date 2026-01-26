@@ -31,6 +31,7 @@ const NotesExplorer = () => {
   const [isExplaining, setIsExplaining] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const [isOrganizing, setIsOrganizing] = useState(false);
+  const [organizationProgress, setOrganizationProgress] = useState(null); // { current, total }
   const [graph, setGraph] = useState({ nodes: {}, edges: [] });
 
   // New folder creation state
@@ -99,6 +100,7 @@ const NotesExplorer = () => {
   const handleAutoOrganize = async () => {
     try {
       setIsOrganizing(true);
+      setOrganizationProgress(null);
       toast("AI is organizing your notes...");
 
       // Subscribe to SSE for folder events
@@ -108,15 +110,25 @@ const NotesExplorer = () => {
         try {
           const data = JSON.parse(event.data);
 
-          if (data.type === "foldersDone") {
+          if (data.type === "foldersProgress") {
+            // Progressive update - show partial results
+            setFolders(data.folders || []);
+            setOrganizationProgress({
+              current: data.current,
+              total: data.total,
+            });
+            toast(`Processing batch ${data.current}/${data.total}...`);
+          } else if (data.type === "foldersDone") {
             setFolders(data.folders || []);
             setViewMode("folders");
             toast.success(data.message || "Organization complete!");
             setIsOrganizing(false);
+            setOrganizationProgress(null);
             eventSource.close();
           } else if (data.type === "foldersError") {
             toast.error("Organization failed: " + data.error);
             setIsOrganizing(false);
+            setOrganizationProgress(null);
             eventSource.close();
           } else if (data.type === "foldersProcessing") {
             toast(data.message || "Processing...");
@@ -136,6 +148,7 @@ const NotesExplorer = () => {
     } catch (err) {
       toast.error("Organization failed: " + err.message);
       setIsOrganizing(false);
+      setOrganizationProgress(null);
     }
   };
 
@@ -218,6 +231,25 @@ const NotesExplorer = () => {
 
   const handleRejectLink = () => {
     setExplanation(null);
+  };
+
+  const handleDirectLink = async () => {
+    if (selectedNotes.length !== 2) return;
+    setIsLinking(true);
+    try {
+      await api.post("/links", {
+        from: selectedNotes[0],
+        to: selectedNotes[1],
+        reason: "Manual link created by user",
+      });
+      fetchGraph();
+      setSelectedNotes([]);
+      setExplanation(null);
+      toast.success("Link created!");
+    } catch (err) {
+      toast.error("Failed: " + err.message);
+    }
+    setIsLinking(false);
   };
 
   const getLinkedNoteIds = (noteId) => {
@@ -303,7 +335,11 @@ const NotesExplorer = () => {
               style={{ background: "var(--accent-color)" }}
             >
               <FolderPlus size={16} />{" "}
-              {isOrganizing ? "Organizing..." : "Auto Organize"}
+              {isOrganizing
+                ? organizationProgress
+                  ? `Processing ${organizationProgress.current}/${organizationProgress.total}...`
+                  : "Organizing..."
+                : "Auto Organize"}
             </button>
           </div>
         </div>
@@ -327,13 +363,22 @@ const NotesExplorer = () => {
               {notes.find((n) => n.id === selectedNotes[0])?.title} ↔{" "}
               {notes.find((n) => n.id === selectedNotes[1])?.title}
             </span>
-            <button
-              onClick={handleExplainLink}
-              disabled={isExplaining}
-              style={{ background: "white", color: "#000" }}
-            >
-              {isExplaining ? "Analyzing..." : "Explain Relationship"}
-            </button>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              <button
+                onClick={handleExplainLink}
+                disabled={isExplaining}
+                style={{ background: "white", color: "#000" }}
+              >
+                {isExplaining ? "Analyzing..." : "🤖 AI Explain"}
+              </button>
+              <button
+                onClick={handleDirectLink}
+                disabled={isLinking}
+                style={{ background: "#10b981", color: "white" }}
+              >
+                {isLinking ? "Linking..." : "🔗 Link Directly"}
+              </button>
+            </div>
           </div>
           {explanation && (
             <div

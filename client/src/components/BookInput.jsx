@@ -5,6 +5,8 @@ const BookInput = ({ onBookAdded }) => {
   const [mode, setMode] = useState("pdf"); // 'pdf' or 'transcript'
   const [file, setFile] = useState(null);
   const [transcript, setTranscript] = useState("");
+  const [title, setTitle] = useState(""); // New Title State
+  const [sourceType, setSourceType] = useState("youtube"); // New Source Type State
   const [bookType, setBookType] = useState("nonfiction"); // 'fiction' or 'nonfiction'
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -44,6 +46,11 @@ const BookInput = ({ onBookAdded }) => {
           setLoading(false);
           return;
         }
+        if (!title.trim()) {
+          setError("Please enter a title.");
+          setLoading(false);
+          return;
+        }
         // For transcript, we can send as JSON or FormData.
         // Backend handles multipart/form-data for file, and JSON for transcript if we separate routes or logic?
         // Wait, backend logic:
@@ -62,7 +69,12 @@ const BookInput = ({ onBookAdded }) => {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
-        response = await api.post("/books", { transcript, bookType });
+        // Updated Payload
+        response = await api.post("/books", {
+          transcript,
+          title,
+          sourceType,
+        });
       }
 
       onBookAdded(response.data.id);
@@ -70,6 +82,7 @@ const BookInput = ({ onBookAdded }) => {
       // Reset
       setFile(null);
       setTranscript("");
+      setTitle("");
       setBookType("nonfiction");
       // Reset file input value if possible, or just re-render
       document.getElementById("pdf-upload").value = "";
@@ -143,92 +156,157 @@ const BookInput = ({ onBookAdded }) => {
                 borderRadius: "4px",
               }}
             />
+            {/* Book Type Selector - Only for PDF */}
+            <div
+              style={{
+                marginTop: "15px",
+                padding: "12px",
+                border: "1px solid var(--border-color)",
+                borderRadius: "6px",
+                background: "var(--bg-secondary)",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "0.85rem",
+                  fontWeight: "bold",
+                  marginBottom: "10px",
+                  color: "var(--text-color)",
+                }}
+              >
+                📚 Book Type
+              </p>
+              <div style={{ display: "flex", gap: "20px" }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="bookType"
+                    value="nonfiction"
+                    checked={bookType === "nonfiction"}
+                    onChange={(e) => setBookType(e.target.value)}
+                  />
+                  <span>📖 Non-Fiction</span>
+                </label>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="bookType"
+                    value="fiction"
+                    checked={bookType === "fiction"}
+                    onChange={(e) => setBookType(e.target.value)}
+                  />
+                  <span>✨ Fiction</span>
+                </label>
+              </div>
+            </div>
           </div>
         ) : (
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+            style={{ display: "flex", flexDirection: "column", gap: "15px" }}
           >
-            <p style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>
-              Paste the full text or transcript below.
-            </p>
-            <textarea
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Paste transcript here..."
-              rows={6}
-              style={{
-                width: "100%",
-                padding: "10px",
-                borderRadius: "4px",
-                border: "1px solid var(--border-color)",
-                fontFamily: "inherit",
-                resize: "vertical",
-              }}
-            />
+            {/* Title Input */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "5px",
+                  fontSize: "0.9rem",
+                  fontWeight: "bold",
+                }}
+              >
+                Title
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="e.g. My Transcript Name"
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: "4px",
+                  border: "1px solid var(--border-color)",
+                }}
+              />
+            </div>
+
+            {/* Source Type Selector */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "5px",
+                  fontSize: "0.9rem",
+                  fontWeight: "bold",
+                }}
+              >
+                Source Type
+              </label>
+              <select
+                value={sourceType}
+                onChange={(e) => setSourceType(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: "4px",
+                  border: "1px solid var(--border-color)",
+                  background: "var(--bg-secondary)",
+                  color: "var(--text-color)",
+                }}
+              >
+                <option value="youtube">📺 YouTube</option>
+                <option value="blog">📝 Blog / Article</option>
+                <option value="other">📄 Other</option>
+              </select>
+            </div>
+
+            {/* Transcript Textarea */}
+            <div>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "5px",
+                  fontSize: "0.9rem",
+                  fontWeight: "bold",
+                }}
+              >
+                Transcript
+              </label>
+              <textarea
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+                placeholder="Paste transcript here..."
+                rows={6}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: "4px",
+                  border: "1px solid var(--border-color)",
+                  fontFamily: "inherit",
+                  resize: "vertical",
+                }}
+              />
+            </div>
           </div>
         )}
 
-        {/* Book Type Selector */}
         <div
           style={{
-            marginTop: "15px",
-            padding: "12px",
-            border: "1px solid var(--border-color)",
-            borderRadius: "6px",
-            background: "var(--bg-secondary)",
-          }}
-        >
-          <p
-            style={{
-              fontSize: "0.85rem",
-              fontWeight: "bold",
-              marginBottom: "10px",
-              color: "var(--text-color)",
-            }}
-          >
-            📚 Book Type
-          </p>
-          <div style={{ display: "flex", gap: "20px" }}>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="radio"
-                name="bookType"
-                value="nonfiction"
-                checked={bookType === "nonfiction"}
-                onChange={(e) => setBookType(e.target.value)}
-              />
-              <span>📖 Non-Fiction</span>
-            </label>
-            <label
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                cursor: "pointer",
-              }}
-            >
-              <input
-                type="radio"
-                name="bookType"
-                value="fiction"
-                checked={bookType === "fiction"}
-                onChange={(e) => setBookType(e.target.value)}
-              />
-              <span>✨ Fiction</span>
-            </label>
-          </div>
-        </div>
-
-        <div
-          style={{
-            marginTop: "15px",
+            marginTop: "20px",
             display: "flex",
             justifyContent: "flex-end",
           }}
@@ -238,14 +316,14 @@ const BookInput = ({ onBookAdded }) => {
             disabled={
               loading ||
               (mode === "pdf" && !file) ||
-              (mode === "transcript" && !transcript.trim())
+              (mode === "transcript" && (!transcript.trim() || !title.trim()))
             }
           >
             {loading
               ? "Processing..."
               : mode === "pdf"
-              ? "Upload & Process"
-              : "Process Transcript"}
+                ? "Upload & Process"
+                : "Process Transcript"}
           </button>
         </div>
       </form>

@@ -32,7 +32,7 @@ function parseJSON(text) {
 async function generateChapterOverview(
   chapterText,
   bookType = "nonfiction",
-  onToken
+  onToken,
 ) {
   const isFiction = bookType === "fiction";
 
@@ -176,7 +176,7 @@ async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
     const parsed = JSON.parse(response.message.content);
     console.log(
       "[AI Service] Structured summary response:",
-      JSON.stringify(parsed).substring(0, 300)
+      JSON.stringify(parsed).substring(0, 300),
     );
 
     // Validate the response has required fields
@@ -186,10 +186,10 @@ async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
     ) {
       console.error(
         "[AI Service] Structured summary missing required fields:",
-        parsed
+        parsed,
       );
       throw new Error(
-        "AI returned invalid structured summary - missing mainIdea and keyConcepts"
+        "AI returned invalid structured summary - missing mainIdea and keyConcepts",
       );
     }
 
@@ -211,14 +211,14 @@ async function generateAtomicNotes(chapterSummaryJSON) {
   if (!hasContent) {
     console.warn(
       "[AI Service] generateAtomicNotes received empty summary:",
-      JSON.stringify(chapterSummaryJSON)
+      JSON.stringify(chapterSummaryJSON),
     );
     return [];
   }
 
   console.log(
     "[AI Service] Generating atomic notes from summary:",
-    JSON.stringify(chapterSummaryJSON).substring(0, 200)
+    JSON.stringify(chapterSummaryJSON).substring(0, 200),
   );
 
   const prompt = `
@@ -282,7 +282,7 @@ async function generateAtomicNotes(chapterSummaryJSON) {
     }
     console.warn(
       "[AI Service] generateAtomicNotes returned unexpected format:",
-      parsed
+      parsed,
     );
     return [];
   } catch (error) {
@@ -409,66 +409,171 @@ ${JSON.stringify(noteB)}
   }
 }
 
-async function generateFolderStructure(allNotes) {
-  // OPTIMIZATION: If notes > 50, use title-only context to save tokens and avoid overflow
-  const isLargeSet = allNotes.length > 50;
+async function generateFolderStructure(allNotes, onProgress = null) {
+  // 1. Generate Taxonomy First (using just titles)
+  console.log(
+    `[AI Service] Generating folder taxonomy for ${allNotes.length} notes...`,
+  );
 
-  const notesLite = allNotes.map((n) => {
-    if (isLargeSet) {
-      return { id: n.id, title: n.title };
-    }
-    return {
-      id: n.id,
-      title: n.title,
-      // Reduced content length for context
-      content: n.content ? n.content.substring(0, 150) : "",
-    };
-  });
+  // Extract titles for taxonomy generation (limit to 100 random titles if too many to avoid context blowout)
+  const MAX_TITLES_FOR_TAXONOMY = 100;
+  const titlesForTaxonomy = allNotes
+    .map((n) => n.title)
+    .sort(() => 0.5 - Math.random()) // Shuffle
+    .slice(0, MAX_TITLES_FOR_TAXONOMY);
 
-  const prompt = `
-    You are organizing a personal knowledge base.
-
+  const taxonomyPrompt = `
+    You are an expert knowledge architect.
+    
     TASK:
-    Group the following knowledge notes into meaningful folders based on thematic similarity.
-    ${
-      isLargeSet
-        ? "Note: You are provided with titles only due to volume. Infer themes from titles."
-        : ""
-    }
-
+    Create a set of 8-12 distinct, high-level folder names to organize a personal knowledge base.
+    Base the categories on the sample note titles provided below.
+    
     RULES:
-    - Each folder must represent a clear theme.
-    - A note should belong to only ONE folder.
-    - Folder names should be short and descriptive (e.g., "Mental Models", "Productivity", "History").
-    - Do NOT force grouping if concepts are unrelated.
-    - Output ONLY valid JSON.
-
-    JSON FORMAT:
-    {
-      "folders": [
-        {
-          "name": "String",
-          "noteIds": ["uuid"]
-        }
-      ]
-    }
-
-    NOTES:
-    ${JSON.stringify(notesLite)}
+    - Folders must be mutually exclusive and collectively exhaustive where possible.
+    - Use clear, professional names (e.g., "Productivity", "Mental Models", "Technology").
+    - Return ONLY a JSON array of strings.
+    
+    SAMPLE TITLES:
+    ${JSON.stringify(titlesForTaxonomy)}
   `;
 
+  let folderNames = [];
   try {
     const response = await ollama.chat({
-      model: "gemma3:4b", // or user configured model
-      messages: [{ role: "user", content: prompt }],
+      model: "gemma3:4b",
+      messages: [{ role: "user", content: taxonomyPrompt }],
       format: "json",
       stream: false,
     });
-    return JSON.parse(response.message.content);
+
+    // Handle potential object wrapper { "folders": [...] } or direct array
+    const parsed = JSON.parse(response.message.content);
+    if (Array.isArray(parsed)) {
+      folderNames = parsed;
+    } else if (parsed.folders && Array.isArray(parsed.folders)) {
+      folderNames = parsed.folders;
+    } else {
+      // Fallback
+      folderNames = ["General", "Concepts", "Projects", "Archive"];
+    }
+    console.log(`[AI Service] Generated taxonomy: ${folderNames.join(", ")}`);
   } catch (error) {
-    console.error("AI Service Error (Folders):", error);
-    throw error;
+    console.error("Failed to generate taxonomy, using default", error);
+    folderNames = [
+      "General",
+      "Mental Models",
+      "Technology",
+      "Health",
+      "Business",
+      "Philosophy",
+    ];
   }
+
+  // 2. Assign Notes to Folders in Batches
+  const BATCH_SIZE = 20;
+  const finalFolders = {}; // Map<FolderName, NoteID[]>
+
+  // Initialize folders
+  folderNames.forEach((name) => (finalFolders[name] = []));
+  finalFolders["Uncategorized"] = [];
+
+  const totalBatches = Math.ceil(allNotes.length / BATCH_SIZE);
+
+  for (let i = 0; i < allNotes.length; i += BATCH_SIZE) {
+    const batch = allNotes.slice(i, i + BATCH_SIZE);
+    const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+    console.log(
+      `[AI Service] Processing batch ${batchNumber} of ${totalBatches}...`,
+    );
+
+    const batchPrompt = `
+      TASK:
+      Assign each of the following notes to ONE of the provided folders.
+      
+      FOLDERS:
+      ${JSON.stringify(folderNames)}
+      
+      NOTES:
+      ${JSON.stringify(batch.map((n) => ({ id: n.id, title: n.title, glimpse: n.content?.substring(0, 50) })))}
+      
+      RULES:
+      - Use ONLY the provided folder names.
+      - If a note fits nowhere, use null or omit it.
+      - Output JSON format: { "assignments": [ { "id": "noteId", "folder": "folderName" } ] }
+    `;
+
+    const attemptBatch = async (retryCount = 0) => {
+      try {
+        console.log(
+          `[AI Service] Batch ${batchNumber} attempt ${retryCount + 1}...`,
+        );
+        const response = await ollama.chat({
+          model: "gemma3:4b",
+          messages: [{ role: "user", content: batchPrompt }],
+          format: "json",
+          stream: false,
+        });
+
+        const parsed = JSON.parse(response.message.content);
+        const assignments = parsed.assignments || [];
+
+        // Process assignments
+        const batchIds = new Set(batch.map((n) => n.id));
+
+        assignments.forEach((a) => {
+          if (batchIds.has(a.id) && finalFolders[a.folder]) {
+            finalFolders[a.folder].push(a.id);
+            batchIds.delete(a.id); // Mark as handled
+          }
+        });
+
+        // Any remaining go to Uncategorized
+        batchIds.forEach((id) => finalFolders["Uncategorized"].push(id));
+      } catch (err) {
+        if (retryCount < 2) {
+          console.warn(
+            `[AI Service] Batch failed, retrying (${retryCount + 1}/2)... Error: ${err.message}`,
+          );
+          await new Promise((r) => setTimeout(r, 2000)); // Wait 2s
+          await attemptBatch(retryCount + 1);
+        } else {
+          console.error(
+            `[AI Service] Batch failed finally, moving to Uncategorized`,
+            err,
+          );
+          batch.forEach((n) => finalFolders["Uncategorized"].push(n.id));
+        }
+      }
+    };
+
+    await attemptBatch();
+
+    // Call progress callback after each batch
+    if (onProgress) {
+      const currentFolders = Object.entries(finalFolders)
+        .filter(([_, ids]) => ids.length > 0)
+        .map(([name, ids]) => ({ name, noteIds: ids }));
+
+      await onProgress({
+        batchNumber,
+        totalBatches,
+        folders: currentFolders,
+      });
+    }
+  }
+
+  // 3. Format Output
+  const result = {
+    folders: Object.entries(finalFolders)
+      .filter(([_, ids]) => ids.length > 0)
+      .map(([name, ids]) => ({
+        name,
+        noteIds: ids,
+      })),
+  };
+
+  return result;
 }
 
 module.exports = {

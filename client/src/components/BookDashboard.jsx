@@ -13,6 +13,26 @@ const BookDashboard = ({ bookId, onDelete }) => {
   const [activeTab, setActiveTab] = useState("overview");
   const [allNotes, setAllNotes] = useState([]);
 
+  // Title Editing State
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
+
+  const handleSaveTitle = async () => {
+    try {
+      await api.patch(`/books/${bookId}`, { title: editedTitle });
+      setBook((prev) => ({ ...prev, title: editedTitle }));
+      setIsEditingTitle(false);
+      toast.success("Title updated");
+    } catch (err) {
+      toast.error("Failed to update title");
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingTitle(false);
+    setEditedTitle("");
+  };
+
   // Local loading states for manual triggers
   const [loadingStep, setLoadingStep] = useState(null); // { chapterId: string, step: string } or null
   const abortControllerRef = useRef(null);
@@ -72,20 +92,10 @@ const BookDashboard = ({ bookId, onDelete }) => {
 
     fetchBook(controller.signal);
 
-    const interval = setInterval(() => {
-      setBook((prev) => {
-        if (prev && (prev.status === "done" || prev.status === "error")) {
-          clearInterval(interval);
-          return prev;
-        }
-        fetchBook(controller.signal);
-        return prev;
-      });
-    }, 3000);
+    // Removed polling - SSE handles real-time updates
 
     return () => {
       controller.abort();
-      clearInterval(interval);
     };
   }, [bookId]);
 
@@ -124,9 +134,18 @@ const BookDashboard = ({ bookId, onDelete }) => {
     return () => evtSource.close();
   }, [bookId]);
 
+  // Memoize chapter IDs to prevent unnecessary refetches
+  const chapterIds = React.useMemo(
+    () => book?.chapters?.map((c) => c.id).join(",") || "",
+    [book?.chapters],
+  );
+
   useEffect(() => {
-    api.get("/notes?all=true").then((res) => setAllNotes(res.data));
-  }, [book]); // Refresh notes when book updates (e.g. generation done)
+    // Only fetch notes when chapters change (e.g., generation complete)
+    if (chapterIds) {
+      api.get("/notes?all=true").then((res) => setAllNotes(res.data));
+    }
+  }, [chapterIds]); // Depend on stable chapter IDs, not entire book object
 
   const handleUpdateNote = (updatedNote) => {
     setAllNotes((prev) =>
@@ -446,7 +465,76 @@ const BookDashboard = ({ bookId, onDelete }) => {
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <div>
-            <h3>{book.title}</h3>
+            {/* Title Editing Logic */}
+            {isEditingTitle ? (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginBottom: "5px",
+                }}
+              >
+                <input
+                  type="text"
+                  value={editedTitle}
+                  onChange={(e) => setEditedTitle(e.target.value)}
+                  style={{
+                    fontSize: "1.5rem",
+                    fontWeight: "bold",
+                    padding: "4px 8px",
+                    borderRadius: "4px",
+                    border: "1px solid var(--border-color)",
+                    background: "var(--bg-secondary)",
+                    color: "var(--text-color)",
+                  }}
+                />
+                <button
+                  onClick={handleSaveTitle}
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "0.8rem",
+                    background: "var(--primary-color)",
+                  }}
+                >
+                  Save
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "0.8rem",
+                    background: "var(--text-muted)",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+              >
+                <h3>{book.title}</h3>
+                <button
+                  onClick={() => {
+                    setEditedTitle(book.title);
+                    setIsEditingTitle(true);
+                  }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "1rem",
+                    padding: "0",
+                    opacity: 0.6,
+                  }}
+                  title="Edit Title"
+                >
+                  ✏️
+                </button>
+              </div>
+            )}
+
             <div
               style={{
                 display: "flex",

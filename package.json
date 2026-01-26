@@ -24,8 +24,10 @@
     "express": "^5.2.1",
     "mongoose": "^9.1.4",
     "multer": "^2.0.2",
+    "node-fetch": "^2.7.0",
     "ollama": "^0.6.3",
     "pdfjs-dist": "^5.4.530",
+    "undici": "^5.29.0",
     "uuid": "^8.3.2"
   }
 }
