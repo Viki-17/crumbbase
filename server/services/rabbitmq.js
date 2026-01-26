@@ -20,8 +20,14 @@ async function connectRabbitMQ() {
     connection = await amqp.connect(RABBITMQ_URL);
     channel = await connection.createChannel();
 
-    // Assert queues
-    await channel.assertQueue(QUEUES.JOBS, { durable: true });
+    // Assert queues with arguments to disable consumer timeout
+    // This allows long-running jobs (like folder organization) to complete
+    await channel.assertQueue(QUEUES.JOBS, {
+      durable: true,
+      arguments: {
+        "x-consumer-timeout": 0, // 0 = infinite timeout, no timeout
+      },
+    });
     await channel.assertQueue(QUEUES.EVENTS, { durable: true });
 
     console.log("RabbitMQ Connected");
@@ -69,7 +75,7 @@ async function publishJob(message) {
     console.log(
       `[RabbitMQ] Published Job: ${message.type} for ${
         message.chapterId || message.bookId
-      }`
+      }`,
     );
   } catch (err) {
     console.error("Failed to publish job:", err);
@@ -102,11 +108,16 @@ async function _consumeJobs(workerFunction) {
   channel.consume(QUEUES.JOBS, async (msg) => {
     if (msg !== null) {
       const content = JSON.parse(msg.content.toString());
+
       try {
         await workerFunction(content);
+        // Acknowledge AFTER successful completion
+        // This ensures jobs persist across restarts
         channel.ack(msg);
       } catch (err) {
         console.error("Error processing job:", err);
+        // Still acknowledge to prevent infinite retries
+        // Since we have progressive storage, partial results are saved
         channel.ack(msg);
       }
     }

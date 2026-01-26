@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import api from "../../api";
-import { Folder, Sparkles, FileText } from "lucide-react";
+import { Folder, Sparkles, FileText, ArrowLeft } from "lucide-react";
 import Loading from "./../layout/Loading";
 import "./../../styles/folder-view.css";
 
@@ -11,7 +11,7 @@ import "./../../styles/folder-view.css";
  * - "Auto-Organize" button to trigger AI grouping
  * - Click note to view
  */
-const FolderView = ({ onSelectNote }) => {
+const FolderView = ({ onSelectNote, onBack }) => {
   const [folders, setFolders] = useState([]);
   const [allNotes, setAllNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +65,16 @@ const FolderView = ({ onSelectNote }) => {
   }
 
   return (
-    <div className="folder-view">
+    <div className="folder-view container">
+      <div style={{ marginBottom: "1rem" }}>
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ paddingLeft: 0 }}
+        >
+          <ArrowLeft size={20} /> Back to Library
+        </button>
+      </div>
       <div className="folder-view-header">
         <h1 className="folder-view-title">AI-Organized Folders</h1>
         <button

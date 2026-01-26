@@ -156,6 +156,43 @@ router.get("/notes", async (req, res) => {
   }
 });
 
+// Natural Language Search for Notes
+router.post("/notes/ask", async (req, res) => {
+  try {
+    const { query } = req.body;
+    if (!query) return res.status(400).json({ error: "Query required" });
+
+    // 1. Generate Embedding for query
+    const queryEmbedding = await embeddingService.generateEmbedding(query);
+
+    // 2. Find Similar Notes
+    const similarNotes = await vectorStore.findSimilar(queryEmbedding, 10); // Top 10
+
+    // 3. Hydrate with full content
+    const results = [];
+    for (const item of similarNotes) {
+      const note = await storage.getNote(item.id);
+      if (note) {
+        results.push({ ...note, score: item.score });
+      }
+    }
+
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get("/notes/:id", async (req, res) => {
+  try {
+    const note = await storage.getNote(req.params.id);
+    if (!note) return res.status(404).json({ error: "Note not found" });
+    res.json(note);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Update Note
 router.patch("/notes/:id", async (req, res) => {
   try {
@@ -417,12 +454,89 @@ router.get("/chapters/:id/audio", async (req, res) => {
 
 // --- Graph API Endpoints ---
 
+// --- Graph API Endpoints ---
+
 router.get("/graph", async (req, res) => {
   try {
     const graph = await storage.getGraph();
     res.json(graph);
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/graph/auto-connect", async (req, res) => {
+  try {
+    // This is a heavy operation, so we acknowledge locally and process async
+    // In a real app, use a proper queue. Here we just run it and let the user know it started.
+
+    res.json({ message: "Auto-connection started... this may take a while." });
+
+    const notes = await storage.getAllNotes();
+    console.log(`[Auto-Connect] Processing ${notes.length} notes...`);
+
+    // We need embeddings for all notes first
+    let notesWithEmbeddings = [];
+    for (const note of notes) {
+      if (!note.embedding || note.embedding.length === 0) {
+        // Generate embedding if missing
+        try {
+          note.embedding = await embeddingService.generateEmbedding(
+            `${note.title}\n${note.content}`,
+          );
+          await storage.saveNote(note);
+        } catch (e) {
+          console.error(`Failed to embed note ${note.id}`, e);
+          continue;
+        }
+      }
+      notesWithEmbeddings.push(note);
+    }
+
+    // Now find connections
+    // For each note, find top 3 similar notes that aren't already linked
+    let newEdgesCount = 0;
+
+    for (const sourceNote of notesWithEmbeddings) {
+      // Get existing links to avoid duplicates
+      const existingEdges = await storage.getEdgesForNote(sourceNote.id);
+      const linkedIds = new Set(
+        existingEdges.map((e) => (e.from === sourceNote.id ? e.to : e.from)),
+      );
+
+      const candidates = await vectorStore.findSimilar(
+        sourceNote.embedding,
+        5,
+        sourceNote.id,
+      );
+
+      for (const candidate of candidates) {
+        if (linkedIds.has(candidate.id)) continue;
+        if (candidate.score < 0.75) continue; // Higher threshold for auto-links
+
+        // Optional: Verify with LLM? skipping to save time/cost for this "fix", relying on vector score
+        // We can mark these as "ai-candidate" or just "ai"
+
+        const edge = {
+          from: sourceNote.id,
+          to: candidate.id,
+          type: "conceptual",
+          direction: "bidirectional",
+          createdBy: "ai",
+          confidence: candidate.score,
+          reason: "High vector similarity",
+          createdAt: new Date().toISOString(),
+        };
+
+        await storage.addEdge(edge);
+        linkedIds.add(candidate.id); // Prevent multiple adds
+        newEdgesCount++;
+      }
+    }
+
+    console.log(`[Auto-Connect] Finished. Created ${newEdgesCount} new links.`);
+  } catch (err) {
+    console.error("Auto-connect failed:", err);
   }
 });
 

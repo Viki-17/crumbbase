@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "../../api";
 import ForceGraph2D from "react-force-graph-2d";
-import { Network } from "lucide-react";
+import { Network, ArrowLeft } from "lucide-react";
 import Loading from "./../layout/Loading";
 import "./../../styles/graph-view.css";
 
@@ -14,7 +14,7 @@ import "./../../styles/graph-view.css";
  * - Filters: Manual vs AI links, confidence threshold, tags
  * - Interactions: Hover (show title), Click (open note)
  */
-const GraphView = ({ onSelectNote }) => {
+const GraphView = ({ onSelectNote, onBack }) => {
   const [graphData, setGraphData] = useState({ nodes: [], links: [] });
   const [allNotes, setAllNotes] = useState([]);
   const [showManualLinks, setShowManualLinks] = useState(true);
@@ -22,22 +22,12 @@ const GraphView = ({ onSelectNote }) => {
   const [confidenceThreshold, setConfidenceThreshold] = useState(0.5);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchGraphData();
-  }, []);
-
   /* useRef to persist raw data without re-fetching */
   const rawGraphData = React.useRef({ nodes: {}, edges: [] });
 
   useEffect(() => {
     fetchGraphData();
-  }, []);
-
-  useEffect(() => {
-    if (allNotes.length > 0) {
-      buildFilteredGraph();
-    }
-  }, [allNotes, showManualLinks, showAILinks, confidenceThreshold]);
+  }, []); // Only fetch once on mount
 
   const fetchGraphData = async () => {
     try {
@@ -57,7 +47,8 @@ const GraphView = ({ onSelectNote }) => {
         edgesSample: graphRes.data.edges?.slice(0, 3),
       });
 
-      buildFilteredGraph();
+      // Removed redundant buildFilteredGraph() call here to avoid double render
+      // The useEffect hook will trigger it when allNotes updates
     } catch (err) {
       console.error("Failed to fetch graph:", err);
     } finally {
@@ -65,18 +56,27 @@ const GraphView = ({ onSelectNote }) => {
     }
   };
 
-  const buildFilteredGraph = () => {
+  // Memoize buildFilteredGraph to prevent infinite loops
+  const buildFilteredGraph = useCallback(() => {
     const rawGraph = rawGraphData.current;
 
-    // Build nodes from notes
+    if (!allNotes || allNotes.length === 0) {
+      console.log("No notes yet, skipping graph build");
+      return;
+    }
+
+    // Build nodes from notes - Ensure IDs are strings
     const nodes = allNotes.map((note) => ({
-      id: note.id,
+      id: String(note.id),
       name: note.title,
       tags: note.tags || [],
       val:
         1 +
-        (rawGraph.edges?.filter((e) => e.from === note.id || e.to === note.id)
-          .length || 0),
+        (rawGraph.edges?.filter(
+          (e) =>
+            String(e.from) === String(note.id) ||
+            String(e.to) === String(note.id),
+        ).length || 0),
     }));
 
     // Filter edges based on filters
@@ -94,19 +94,27 @@ const GraphView = ({ onSelectNote }) => {
       (e) => !e.confidence || e.confidence >= confidenceThreshold,
     );
 
-    console.log("Filtered Edges:", edges.length);
-
     // Convert to graph format with explicit string IDs for source/target
     const links = edges.map((e) => ({
-      source: e.from,
-      target: e.to,
+      source: String(e.from),
+      target: String(e.to),
       type: e.createdBy,
       reason: e.reason,
       confidence: e.confidence,
     }));
 
+    console.log("Links for graph:", {
+      nodeCount: nodes.length,
+      linkCount: links.length,
+    });
+
     setGraphData({ nodes, links });
-  };
+  }, [allNotes, showManualLinks, showAILinks, confidenceThreshold]);
+
+  // Rebuild graph when filters change
+  useEffect(() => {
+    buildFilteredGraph();
+  }, [buildFilteredGraph]);
 
   const handleNodeClick = useCallback(
     (node) => {
@@ -152,7 +160,16 @@ const GraphView = ({ onSelectNote }) => {
   }
 
   return (
-    <div className="graph-view">
+    <div className="graph-view container">
+      <div style={{ marginBottom: "1rem" }}>
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ paddingLeft: 0 }}
+        >
+          <ArrowLeft size={20} /> Back to Library
+        </button>
+      </div>
       <div className="graph-view-header">
         <h2 className="graph-view-title">Graph View</h2>
 
@@ -191,6 +208,39 @@ const GraphView = ({ onSelectNote }) => {
             />
             <span>{(confidenceThreshold * 100).toFixed(0)}%</span>
           </div>
+
+          <button
+            onClick={async () => {
+              if (
+                window.confirm(
+                  "This will analyze all notes and generate connections. It may take a minute. Continue?",
+                )
+              ) {
+                try {
+                  await api.post("/graph/auto-connect");
+                  alert(
+                    "Analysis started in background. Refresh graph in a minute.",
+                  );
+                } catch (e) {
+                  alert("Error: " + e.message);
+                }
+              }
+            }}
+            style={{
+              marginLeft: "auto",
+              background: "var(--accent-color)",
+              color: "white",
+              border: "none",
+              padding: "0.5rem 1rem",
+              borderRadius: "4px",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <Network size={16} /> Connect Notes
+          </button>
         </div>
       </div>
 
@@ -200,13 +250,21 @@ const GraphView = ({ onSelectNote }) => {
           nodeLabel="name"
           nodeColor={(node) => "#6366f1"}
           nodeRelSize={6}
-          linkColor={() => "#ffffff"}
-          linkWidth={1.5}
-          linkDirectionalParticles={4}
+          linkColor={(link) => {
+            // Make links visible with distinct colors
+            if (link.type === "manual") return "#10b981"; // Green
+            if (link.type === "ai") return "#f59e0b"; // Orange
+            return "#94a3b8"; // Gray fallback
+          }}
+          linkWidth={2}
+          linkDirectionalArrows={true}
+          linkDirectionalArrowLength={3.5}
+          linkDirectionalArrowRelPos={0.5}
+          linkDirectionalParticles={2}
           linkDirectionalParticleWidth={2}
           onNodeClick={handleNodeClick}
           onNodeHover={handleNodeHover}
-          backgroundColor="#2d2d2d"
+          backgroundColor="#1e293b"
           cooldownTicks={100}
           d3VelocityDecay={0.3}
         />

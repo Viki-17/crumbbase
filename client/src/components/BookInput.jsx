@@ -1,13 +1,14 @@
 import React, { useState } from "react";
 import api from "../api";
+import { Upload, FileText } from "lucide-react";
 
 const BookInput = ({ onBookAdded }) => {
   const [mode, setMode] = useState("pdf"); // 'pdf' or 'transcript'
   const [file, setFile] = useState(null);
   const [transcript, setTranscript] = useState("");
-  const [title, setTitle] = useState(""); // New Title State
-  const [sourceType, setSourceType] = useState("youtube"); // New Source Type State
-  const [bookType, setBookType] = useState("nonfiction"); // 'fiction' or 'nonfiction'
+  const [title, setTitle] = useState("");
+  const [sourceType, setSourceType] = useState("youtube");
+  const [bookType, setBookType] = useState("nonfiction");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -18,7 +19,6 @@ const BookInput = ({ onBookAdded }) => {
         setError("Please select a PDF file.");
         return;
       }
-      // (Removed file size check)
       setFile(selected);
       setError(null);
     }
@@ -51,16 +51,6 @@ const BookInput = ({ onBookAdded }) => {
           setLoading(false);
           return;
         }
-        // For transcript, we can send as JSON or FormData.
-        // Backend handles multipart/form-data for file, and JSON for transcript if we separate routes or logic?
-        // Wait, backend logic:
-        // app.post("/api/books", upload.single("file"), ...)
-        // If we send JSON, multer middleware might not process body if header isn't multipart?
-        // Multer processes `multipart/form-data`. If we send JSON `application/json`, multer might skip?
-        // Actually, for JSON body, we should probably just send JSON and `upload.single` will just ignore file field if checking `req.file` correctly.
-        // BUT `req.body` might be empty if content-type is json and body-parser isn't used before multer?
-        // `app.use(bodyParser.json())` is in index.js at top.
-        // So sending JSON for transcript is fine.
       }
 
       let response;
@@ -69,7 +59,6 @@ const BookInput = ({ onBookAdded }) => {
           headers: { "Content-Type": "multipart/form-data" },
         });
       } else {
-        // Updated Payload
         response = await api.post("/books", {
           transcript,
           title,
@@ -84,7 +73,6 @@ const BookInput = ({ onBookAdded }) => {
       setTranscript("");
       setTitle("");
       setBookType("nonfiction");
-      // Reset file input value if possible, or just re-render
       document.getElementById("pdf-upload").value = "";
     } catch (err) {
       console.error(err);
@@ -94,94 +82,80 @@ const BookInput = ({ onBookAdded }) => {
     }
   };
 
-  const tabStyle = (active) => ({
-    padding: "8px 16px",
-    cursor: "pointer",
-    color: active ? "var(--text-color)" : "var(--text-muted)",
-    fontWeight: active ? "bold" : "normal",
-    background: "none",
-    border: "none",
-    borderBottom: active
-      ? "2px solid var(--primary-color)"
-      : "2px solid transparent",
-    marginBottom: "10px",
-  });
-
   return (
     <div className="card">
       <div
+        className="flex-between"
         style={{
-          display: "flex",
-          gap: "10px",
-          marginBottom: "15px",
-          borderBottom: "1px solid var(--border-color)",
+          marginBottom: "1.5rem",
+          justifyContent: "flex-start",
+          gap: "1rem",
         }}
       >
         <button
           type="button"
           onClick={() => setMode("pdf")}
-          style={tabStyle(mode === "pdf")}
+          className={mode === "pdf" ? "btn-primary" : "btn-ghost"}
         >
-          📄 Upload PDF
+          <Upload size={16} /> Upload PDF
         </button>
         <button
           type="button"
           onClick={() => setMode("transcript")}
-          style={tabStyle(mode === "transcript")}
+          className={mode === "transcript" ? "btn-primary" : "btn-ghost"}
         >
-          📝 Paste Transcript
+          <FileText size={16} /> Paste Transcript
         </button>
       </div>
 
-      <form
-        onSubmit={handleSubmit}
-        className="input-group"
-        style={{ flexDirection: "column", alignItems: "stretch" }}
-      >
+      <form onSubmit={handleSubmit} style={{ width: "100%" }}>
         {mode === "pdf" ? (
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
+            style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
           >
-            <p style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}>
-              Select a PDF file (max 5MB).
-            </p>
+            <p className="text-secondary">Select a PDF file (max 5MB).</p>
             <input
               id="pdf-upload"
               type="file"
               accept=".pdf"
               onChange={handleFileChange}
               style={{
-                padding: "10px",
-                border: "1px dashed var(--border-color)",
-                borderRadius: "4px",
+                padding: "2rem",
+                border: "2px dashed var(--border-color)",
+                background: "var(--bg-surface-2)",
+                borderRadius: "var(--border-radius-sm)",
+                cursor: "pointer",
+                width: "100%",
+                textAlign: "center",
               }}
             />
-            {/* Book Type Selector - Only for PDF */}
+
             <div
+              className="card"
               style={{
-                marginTop: "15px",
-                padding: "12px",
-                border: "1px solid var(--border-color)",
-                borderRadius: "6px",
-                background: "var(--bg-secondary)",
+                background: "var(--bg-surface-2)",
+                padding: "1.25rem",
+                border: "none",
+                width: "100%",
               }}
             >
               <p
                 style={{
-                  fontSize: "0.85rem",
-                  fontWeight: "bold",
-                  marginBottom: "10px",
-                  color: "var(--text-color)",
+                  fontWeight: "600",
+                  marginBottom: "0.75rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
                 }}
               >
-                📚 Book Type
+                <span>📚</span> Book Type
               </p>
-              <div style={{ display: "flex", gap: "20px" }}>
+              <div style={{ display: "flex", gap: "2rem" }}>
                 <label
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
+                    gap: "0.6rem",
                     cursor: "pointer",
                   }}
                 >
@@ -191,6 +165,7 @@ const BookInput = ({ onBookAdded }) => {
                     value="nonfiction"
                     checked={bookType === "nonfiction"}
                     onChange={(e) => setBookType(e.target.value)}
+                    style={{ width: "auto" }}
                   />
                   <span>📖 Non-Fiction</span>
                 </label>
@@ -198,7 +173,7 @@ const BookInput = ({ onBookAdded }) => {
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "6px",
+                    gap: "0.6rem",
                     cursor: "pointer",
                   }}
                 >
@@ -208,6 +183,7 @@ const BookInput = ({ onBookAdded }) => {
                     value="fiction"
                     checked={bookType === "fiction"}
                     onChange={(e) => setBookType(e.target.value)}
+                    style={{ width: "auto" }}
                   />
                   <span>✨ Fiction</span>
                 </label>
@@ -216,16 +192,14 @@ const BookInput = ({ onBookAdded }) => {
           </div>
         ) : (
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "15px" }}
+            style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
           >
-            {/* Title Input */}
             <div>
               <label
                 style={{
                   display: "block",
-                  marginBottom: "5px",
-                  fontSize: "0.9rem",
-                  fontWeight: "bold",
+                  marginBottom: "0.5rem",
+                  fontWeight: "600",
                 }}
               >
                 Title
@@ -235,23 +209,16 @@ const BookInput = ({ onBookAdded }) => {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. My Transcript Name"
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "4px",
-                  border: "1px solid var(--border-color)",
-                }}
+                style={{ width: "100%" }}
               />
             </div>
 
-            {/* Source Type Selector */}
             <div>
               <label
                 style={{
                   display: "block",
-                  marginBottom: "5px",
-                  fontSize: "0.9rem",
-                  fontWeight: "bold",
+                  marginBottom: "0.5rem",
+                  fontWeight: "600",
                 }}
               >
                 Source Type
@@ -259,14 +226,7 @@ const BookInput = ({ onBookAdded }) => {
               <select
                 value={sourceType}
                 onChange={(e) => setSourceType(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "4px",
-                  border: "1px solid var(--border-color)",
-                  background: "var(--bg-secondary)",
-                  color: "var(--text-color)",
-                }}
+                style={{ width: "100%" }}
               >
                 <option value="youtube">📺 YouTube</option>
                 <option value="blog">📝 Blog / Article</option>
@@ -274,14 +234,12 @@ const BookInput = ({ onBookAdded }) => {
               </select>
             </div>
 
-            {/* Transcript Textarea */}
             <div>
               <label
                 style={{
                   display: "block",
-                  marginBottom: "5px",
-                  fontSize: "0.9rem",
-                  fontWeight: "bold",
+                  marginBottom: "0.5rem",
+                  fontWeight: "600",
                 }}
               >
                 Transcript
@@ -290,14 +248,11 @@ const BookInput = ({ onBookAdded }) => {
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 placeholder="Paste transcript here..."
-                rows={6}
+                rows={8}
                 style={{
-                  width: "100%",
-                  padding: "10px",
-                  borderRadius: "4px",
-                  border: "1px solid var(--border-color)",
-                  fontFamily: "inherit",
                   resize: "vertical",
+                  minHeight: "150px",
+                  width: "100%",
                 }}
               />
             </div>
@@ -306,28 +261,44 @@ const BookInput = ({ onBookAdded }) => {
 
         <div
           style={{
-            marginTop: "20px",
+            marginTop: "2rem",
             display: "flex",
             justifyContent: "flex-end",
           }}
         >
           <button
             type="submit"
+            className="btn-primary"
+            style={{ padding: "0.75rem 2rem", fontSize: "1rem" }}
             disabled={
               loading ||
               (mode === "pdf" && !file) ||
               (mode === "transcript" && (!transcript.trim() || !title.trim()))
             }
           >
-            {loading
-              ? "Processing..."
-              : mode === "pdf"
-                ? "Upload & Process"
-                : "Process Transcript"}
+            {loading ? (
+              <>Processing...</>
+            ) : mode === "pdf" ? (
+              <>Upload & Process</>
+            ) : (
+              <>Process Transcript</>
+            )}
           </button>
         </div>
       </form>
-      {error && <p style={{ color: "#ef4444", marginTop: "1rem" }}>{error}</p>}
+      {error && (
+        <div
+          style={{
+            color: "var(--error)",
+            marginTop: "1rem",
+            padding: "0.5rem",
+            background: "var(--error-bg)",
+            borderRadius: "var(--border-radius-sm)",
+          }}
+        >
+          {error}
+        </div>
+      )}
     </div>
   );
 };

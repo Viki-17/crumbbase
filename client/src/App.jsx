@@ -31,6 +31,10 @@ function App() {
   const [books, setBooks] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // View state preservation
+  const [notesExplorerState, setNotesExplorerState] = useState(null);
+  const [previousView, setPreviousView] = useState("home");
+
   useEffect(() => {
     fetchBooks();
   }, []);
@@ -61,7 +65,23 @@ function App() {
     }
   };
 
-  const handleSelectView = (view, id = null) => {
+  const handleSelectView = (view, id = null, context = null) => {
+    // If we are navigating to 'note', track where we came from
+    if (view === "note") {
+      setPreviousView(currentView);
+    }
+
+    // If we are navigating FROM 'notes' TO 'note', save the context
+    if (currentView === "notes" && view === "note" && context) {
+      setNotesExplorerState(context);
+    }
+    // If navigating to home or notes fresh, clear context
+    else if (view === "home" || (view === "notes" && !context)) {
+      if (view !== "notes") {
+        setNotesExplorerState(null);
+      }
+    }
+
     setCurrentView(view);
 
     if (view === "book" && id) {
@@ -99,13 +119,22 @@ function App() {
     switch (currentView) {
       case "note":
         return (
-          <NoteView noteId={selectedNoteId} onNoteUpdated={handleNoteUpdated} />
+          <NoteView
+            noteId={selectedNoteId}
+            onNoteUpdated={handleNoteUpdated}
+            onBack={() => {
+              // Return to previous view
+              handleSelectView(previousView);
+            }}
+            onSelectView={handleSelectView}
+          />
         );
 
       case "graph":
         return (
           <GraphView
             onSelectNote={(noteId) => handleSelectView("note", noteId)}
+            onBack={() => handleSelectView("home")}
           />
         );
 
@@ -113,11 +142,17 @@ function App() {
         return (
           <FolderView
             onSelectNote={(noteId) => handleSelectView("note", noteId)}
+            onBack={() => handleSelectView("home")}
           />
         );
 
       case "notes":
-        return <NotesExplorer />;
+        return (
+          <NotesExplorer
+            onSelectView={handleSelectView}
+            initialState={notesExplorerState}
+          />
+        );
 
       case "book":
         return selectedBookId ? (
@@ -125,6 +160,8 @@ function App() {
             key={selectedBookId}
             bookId={selectedBookId}
             onDelete={handleDeleteBook}
+            onBack={() => handleSelectView("home")}
+            onSelectView={handleSelectView}
           />
         ) : (
           <div className="main-content-empty">
@@ -135,93 +172,120 @@ function App() {
       case "home":
       default:
         return (
-          <div style={{ padding: "var(--space-xl)" }}>
+          <div className="container" style={{ padding: "var(--space-xl)" }}>
             <BookInput onBookAdded={handleBookAdded} />
 
-            <div style={{ marginTop: "var(--space-xl)" }}>
+            <div style={{ marginTop: "3rem" }}>
               <h2
-                style={{
-                  marginBottom: "var(--space-lg)",
-                  color: "var(--text-primary)",
-                }}
+                style={{ marginBottom: "1.5rem", color: "var(--text-primary)" }}
               >
                 Your Library
               </h2>
               {loading ? (
                 <Loading message="Fetching your library..." />
               ) : books.length === 0 ? (
-                <p style={{ color: "var(--text-tertiary)" }}>
+                <div
+                  className="text-secondary"
+                  style={{ textAlign: "center", padding: "2rem" }}
+                >
                   No books added yet.
-                </p>
+                </div>
               ) : (
                 <div
                   style={{
                     display: "grid",
-                    gap: "var(--space-md)",
+                    gap: "1.5rem",
                     gridTemplateColumns:
-                      "repeat(auto-fill, minmax(250px, 1fr))",
+                      "repeat(auto-fill, minmax(280px, 1fr))",
                   }}
                 >
                   {books.map((book) => (
                     <div
                       key={book.id}
                       onClick={() => handleSelectView("book", book.id)}
+                      className="card book-card"
                       style={{
-                        background: "var(--card-bg)",
-                        padding: "var(--space-lg)",
-                        borderRadius: "var(--border-radius)",
-                        border: "1px solid var(--border-color)",
                         cursor: "pointer",
-                        transition: "all var(--transition-fast)",
+                        transition: "all 0.2s ease",
+                        position: "relative",
+                        overflow: "hidden",
                       }}
                       onMouseOver={(e) => {
+                        e.currentTarget.style.transform = "translateY(-4px)";
                         e.currentTarget.style.borderColor =
-                          "var(--accent-color)";
-                        e.currentTarget.style.transform = "translateY(-2px)";
+                          "var(--primary-color)";
+                        e.currentTarget.style.boxShadow = "var(--shadow-lg)";
                       }}
                       onMouseOut={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)";
                         e.currentTarget.style.borderColor =
                           "var(--border-color)";
-                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "var(--shadow-sm)";
                       }}
                     >
-                      <h3
-                        style={{
-                          fontSize: "var(--font-size-lg)",
-                          marginBottom: "var(--space-sm)",
-                          color: "var(--text-primary)",
-                        }}
+                      <div
+                        className="flex-between"
+                        style={{ alignItems: "flex-start" }}
                       >
-                        {book.title}
-                      </h3>
+                        <h3
+                          className="truncate"
+                          style={{
+                            fontSize: "1.25rem",
+                            margin: "0 0 0.5rem 0",
+                            color: "var(--text-primary)",
+                          }}
+                          title={book.title}
+                        >
+                          {book.title}
+                        </h3>
+                      </div>
                       <p
-                        style={{
-                          fontSize: "var(--font-size-sm)",
-                          color: "var(--text-secondary)",
-                          marginBottom: "var(--space-sm)",
-                        }}
+                        className="text-secondary"
+                        style={{ fontSize: "0.9rem", marginBottom: "1rem" }}
                       >
                         {book.chunkCount} Chapters
                       </p>
-                      <span
+                      <div
                         style={{
-                          fontSize: "var(--font-size-xs)",
-                          color:
-                            book.status === "done"
-                              ? "var(--success)"
-                              : book.status === "processing"
-                              ? "var(--warning)"
-                              : "var(--text-tertiary)",
-                          textTransform: "uppercase",
-                          fontWeight: "600",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
                         }}
                       >
-                        {book.status === "processing"
-                          ? "⏳ Processing"
-                          : book.status === "done"
-                          ? "✅ Complete"
-                          : book.status}
-                      </span>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "2px 8px",
+                            borderRadius: "12px",
+                            background:
+                              book.status === "done"
+                                ? "rgba(16, 185, 129, 0.1)"
+                                : book.status === "processing"
+                                  ? "rgba(245, 158, 11, 0.1)"
+                                  : "var(--bg-surface-3)",
+                            color:
+                              book.status === "done"
+                                ? "var(--success)"
+                                : book.status === "processing"
+                                  ? "var(--warning)"
+                                  : "var(--text-tertiary)",
+                            border: "1px solid currentColor",
+                            fontWeight: "600",
+                          }}
+                        >
+                          {book.status === "processing"
+                            ? "⏳ Processing"
+                            : book.status === "done"
+                              ? "✅ Complete"
+                              : book.status}
+                        </span>
+                        <span
+                          className="text-secondary"
+                          style={{ fontSize: "0.8rem" }}
+                        >
+                          {new Date(book.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>

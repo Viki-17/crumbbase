@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import api from "../../api";
-import { Edit2, Save, X, Sparkles, FileText } from "lucide-react";
+import { Edit2, Save, X, Sparkles, FileText, ArrowLeft } from "lucide-react";
 import Loading from "../layout/Loading";
 import "./../../styles/note-view.css";
 
@@ -14,7 +14,7 @@ import "./../../styles/note-view.css";
  * - Actions: Edit, Save, Suggest Links
  * - Source book/chapter link
  */
-const NoteView = ({ noteId, onNoteUpdated }) => {
+const NoteView = ({ noteId, onNoteUpdated, onBack }) => {
   const [note, setNote] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState("");
@@ -37,14 +37,12 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
   const fetchNote = async () => {
     try {
       setLoading(true);
-      const res = await api.get(`/notes`);
-      const foundNote = res.data.find((n) => String(n.id) === String(noteId));
-
-      if (foundNote) {
-        setNote(foundNote);
-        setEditedTitle(foundNote.title);
-        setEditedContent(foundNote.content);
-        setEditedTags(foundNote.tags?.join(", ") || "");
+      const res = await api.get(`/notes/${noteId}`);
+      if (res.data) {
+        setNote(res.data);
+        setEditedTitle(res.data.title);
+        setEditedContent(res.data.content);
+        setEditedTags(res.data.tags?.join(", ") || "");
       }
     } catch (err) {
       console.error("Failed to fetch note:", err);
@@ -157,7 +155,16 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
   }
 
   return (
-    <div className="note-view">
+    <div className="note-view container">
+      <div style={{ marginBottom: "1rem" }}>
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ paddingLeft: 0 }}
+        >
+          <ArrowLeft size={20} /> Back
+        </button>
+      </div>
       <div className="note-view-header">
         <div className="note-view-title-section">
           {isEditing ? (
@@ -191,7 +198,7 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
           {isEditing ? (
             <>
               <button
-                className="note-view-btn primary"
+                className="btn-primary"
                 onClick={handleSave}
                 disabled={saving}
               >
@@ -199,7 +206,7 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
                 {saving ? "Saving..." : "Save"}
               </button>
               <button
-                className="note-view-btn"
+                className="btn-ghost"
                 onClick={handleCancel}
                 disabled={saving}
               >
@@ -209,15 +216,12 @@ const NoteView = ({ noteId, onNoteUpdated }) => {
             </>
           ) : (
             <>
-              <button
-                className="note-view-btn"
-                onClick={() => setIsEditing(true)}
-              >
+              <button className="btn-ghost" onClick={() => setIsEditing(true)}>
                 <Edit2 size={16} />
                 Edit
               </button>
               <button
-                className="note-view-btn"
+                className="btn-ghost"
                 onClick={handleSuggestLinks}
                 disabled={suggesting}
               >

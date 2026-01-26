@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { ArrowLeft } from "lucide-react";
 import axios from "axios";
 import api from "../api";
 import { toast } from "react-hot-toast";
@@ -6,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import NoteCard from "./NoteCard";
 import Loading from "./layout/Loading";
 
-const BookDashboard = ({ bookId, onDelete }) => {
+const BookDashboard = ({ bookId, onDelete, onBack }) => {
   const [book, setBook] = useState(null);
   const [statusMsg, setStatusMsg] = useState("");
   const [selectedChapterId, setSelectedChapterId] = useState(null);
@@ -367,7 +368,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
           </p>
           <button
             onClick={() => handleGenerate(apiEndpointStep)}
-            style={{ background: "var(--primary-color)" }}
+            className="btn-primary"
           >
             Regenerate {label}
           </button>
@@ -392,13 +393,8 @@ const BookDashboard = ({ bookId, onDelete }) => {
           <div style={{ marginTop: "1rem" }}>
             <button
               onClick={() => handleSkip(apiEndpointStep)}
-              style={{
-                background: "transparent",
-                border: "1px solid #ef4444",
-                color: "#ef4444",
-                fontSize: "0.8rem",
-                padding: "4px 8px",
-              }}
+              className="btn-ghost"
+              style={{ color: "var(--error)", borderColor: "var(--error)" }}
             >
               Stop & Skip
             </button>
@@ -426,7 +422,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
         <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
           <button
             onClick={() => handleGenerate(apiEndpointStep)}
-            style={{ background: "var(--primary-color)" }}
+            className="btn-primary"
           >
             {status === "failed" ? "Retry" : label}
           </button>
@@ -434,7 +430,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
           {status !== "failed" && (
             <button
               onClick={() => handleSkip(apiEndpointStep)}
-              style={{ background: "#6b7280" }}
+              className="btn-ghost"
             >
               Skip
             </button>
@@ -461,6 +457,16 @@ const BookDashboard = ({ bookId, onDelete }) => {
 
   return (
     <div className="container book-dashboard">
+      <div style={{ marginBottom: "1rem" }}>
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ paddingLeft: 0 }}
+        >
+          <ArrowLeft size={20} /> Back to Library
+        </button>
+      </div>
+
       {/* Header Card */}
       <div className="card">
         <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -491,11 +497,8 @@ const BookDashboard = ({ bookId, onDelete }) => {
                 />
                 <button
                   onClick={handleSaveTitle}
-                  style={{
-                    padding: "4px 8px",
-                    fontSize: "0.8rem",
-                    background: "var(--primary-color)",
-                  }}
+                  className="btn-primary"
+                  style={{ fontSize: "0.8rem", padding: "4px 8px" }}
                 >
                   Save
                 </button>
@@ -512,22 +515,30 @@ const BookDashboard = ({ bookId, onDelete }) => {
               </div>
             ) : (
               <div
-                style={{ display: "flex", alignItems: "center", gap: "10px" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  minWidth: 0,
+                }}
               >
-                <h3>{book.title}</h3>
+                <h1
+                  className="truncate"
+                  style={{
+                    fontSize: "2rem",
+                    maxWidth: "100%",
+                  }}
+                  title={book.title}
+                >
+                  {book.title}
+                </h1>
                 <button
                   onClick={() => {
                     setEditedTitle(book.title);
                     setIsEditingTitle(true);
                   }}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    fontSize: "1rem",
-                    padding: "0",
-                    opacity: 0.6,
-                  }}
+                  className="btn-ghost btn-icon"
+                  style={{ flexShrink: 0 }}
                   title="Edit Title"
                 >
                   ✏️
@@ -612,13 +623,15 @@ const BookDashboard = ({ bookId, onDelete }) => {
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
                 onClick={handleRegenerateBook}
-                style={{ background: "#f59e0b", fontSize: "0.8rem" }}
+                className="btn-ghost"
+                style={{ color: "var(--warning)" }}
               >
                 🔄 Regenerate All
               </button>
               <button
                 onClick={handleDelete}
-                style={{ background: "#ef4444", fontSize: "0.8rem" }}
+                className="btn-ghost"
+                style={{ color: "var(--error)" }}
               >
                 Delete Book
               </button>
@@ -759,17 +772,17 @@ const BookDashboard = ({ bookId, onDelete }) => {
                         style={{
                           display: "flex",
                           justifyContent: "flex-end",
-                          gap: "0.5rem",
-                          marginBottom: "1rem",
+                          gap: "0.75rem",
+                          marginBottom: "1.5rem",
                         }}
                       >
                         <button
                           onClick={() => handleGenerate("overview")}
+                          className="btn-secondary"
                           style={{
-                            background: "#f59e0b",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
+                            borderRadius: "12px",
+                            padding: "0.6rem 1.25rem",
+                            fontSize: "0.9rem",
                           }}
                         >
                           🔄 Regenerate
@@ -777,13 +790,19 @@ const BookDashboard = ({ bookId, onDelete }) => {
                         <button
                           onClick={handleListen}
                           disabled={isAudioLoading}
+                          className="btn-primary"
                           style={{
                             background: isPlaying
-                              ? "#ef4444"
-                              : "var(--primary-color)",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
+                              ? "var(--error)"
+                              : "linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%)",
+                            borderColor: "transparent",
+                            borderRadius: "12px",
+                            padding: "0.6rem 1.5rem",
+                            fontSize: "0.9rem",
+                            boxShadow: isPlaying
+                              ? "none"
+                              : "0 4px 12px rgba(139, 92, 246, 0.3)",
+                            fontWeight: "700",
                           }}
                         >
                           {isAudioLoading ? (
