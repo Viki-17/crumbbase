@@ -1,7 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import api from "../api";
 import toast from "react-hot-toast";
-import { Folder, FolderPlus, ArrowLeft, Grid, Layers } from "lucide-react";
+import {
+  Folder,
+  FolderPlus,
+  ArrowLeft,
+  Grid,
+  Layers,
+  Search,
+  Loader2,
+} from "lucide-react";
 import NoteCard from "./NoteCard";
 
 const NotesExplorer = () => {
@@ -11,6 +19,13 @@ const NotesExplorer = () => {
   const [viewMode, setViewMode] = useState("all");
   const [activeFolder, setActiveFolder] = useState(null);
 
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [totalNotes, setTotalNotes] = useState(0);
+  const [isLoadingNotes, setIsLoadingNotes] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const [selectedNotes, setSelectedNotes] = useState([]);
   const [explanation, setExplanation] = useState(null);
   const [isExplaining, setIsExplaining] = useState(false);
@@ -18,15 +33,53 @@ const NotesExplorer = () => {
   const [isOrganizing, setIsOrganizing] = useState(false);
   const [graph, setGraph] = useState({ nodes: {}, edges: [] });
 
+  // New folder creation state
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+
   useEffect(() => {
-    fetchNotes();
+    fetchNotes(1, true);
     fetchGraph();
     fetchFolders();
   }, []);
 
-  const fetchNotes = async () => {
-    const res = await api.get("/notes");
-    setNotes(res.data);
+  const fetchNotes = useCallback(
+    async (pageNum = 1, reset = false) => {
+      try {
+        setIsLoadingNotes(true);
+        const res = await api.get("/notes", {
+          params: { page: pageNum, limit: 20, search: searchQuery },
+        });
+        const { notes: fetchedNotes, pagination } = res.data;
+
+        if (reset) {
+          setNotes(fetchedNotes);
+        } else {
+          setNotes((prev) => [...prev, ...fetchedNotes]);
+        }
+        setPage(pagination.page);
+        setHasMore(pagination.hasMore);
+        setTotalNotes(pagination.total);
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to load notes");
+      } finally {
+        setIsLoadingNotes(false);
+      }
+    },
+    [searchQuery],
+  );
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setPage(1);
+    fetchNotes(1, true);
+  };
+
+  const loadMoreNotes = () => {
+    if (hasMore && !isLoadingNotes) {
+      fetchNotes(page + 1, false);
+    }
   };
 
   const fetchFolders = async () => {
@@ -47,14 +100,59 @@ const NotesExplorer = () => {
     try {
       setIsOrganizing(true);
       toast("AI is organizing your notes...");
-      const res = await api.post("/folders/generate");
-      setFolders(res.data.folders || []);
-      setViewMode("folders");
-      toast.success("Organization complete!");
+
+      // Subscribe to SSE for folder events
+      const eventSource = new EventSource("/api/folders/events");
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+
+          if (data.type === "foldersDone") {
+            setFolders(data.folders || []);
+            setViewMode("folders");
+            toast.success(data.message || "Organization complete!");
+            setIsOrganizing(false);
+            eventSource.close();
+          } else if (data.type === "foldersError") {
+            toast.error("Organization failed: " + data.error);
+            setIsOrganizing(false);
+            eventSource.close();
+          } else if (data.type === "foldersProcessing") {
+            toast(data.message || "Processing...");
+          }
+        } catch (e) {
+          console.error("Error parsing SSE event:", e);
+        }
+      };
+
+      eventSource.onerror = () => {
+        // Don't show error toast on close, it might just be the connection closing
+        eventSource.close();
+      };
+
+      // Start the async job
+      await api.post("/folders/generate");
     } catch (err) {
       toast.error("Organization failed: " + err.message);
-    } finally {
       setIsOrganizing(false);
+    }
+  };
+
+  const handleCreateFolder = async (e) => {
+    e.preventDefault();
+    if (!newFolderName.trim()) return;
+
+    try {
+      setIsCreatingFolder(true);
+      const res = await api.post("/folders", { name: newFolderName.trim() });
+      setFolders(res.data.folders || []);
+      setNewFolderName("");
+      toast.success("Folder created!");
+    } catch (err) {
+      toast.error("Failed to create folder: " + err.message);
+    } finally {
+      setIsCreatingFolder(false);
     }
   };
 
@@ -142,6 +240,8 @@ const NotesExplorer = () => {
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            flexWrap: "wrap",
+            gap: "1rem",
           }}
         >
           <div>
@@ -150,8 +250,8 @@ const NotesExplorer = () => {
               {viewMode === "folders"
                 ? "AI Organized Folders"
                 : viewMode === "folder-detail"
-                ? `Folder: ${activeFolder?.name}`
-                : "All Atomic Notes"}
+                  ? `Folder: ${activeFolder?.name}`
+                  : `All Atomic Notes (${notes.length} of ${totalNotes})`}
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px" }}>
@@ -320,41 +420,97 @@ const NotesExplorer = () => {
           ))}
         </div>
       ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-            gap: "1rem",
-          }}
-        >
-          {filteredNotes.length === 0 && (
-            <div
+        <>
+          {/* Search Bar for Notes (only in 'all' view) */}
+          {viewMode === "all" && (
+            <form
+              onSubmit={handleSearch}
               style={{
-                gridColumn: "1/-1",
-                textAlign: "center",
-                padding: "2rem",
-                opacity: 0.6,
+                display: "flex",
+                gap: "0.5rem",
+                marginBottom: "1rem",
               }}
             >
-              No notes found.
+              <input
+                type="text"
+                placeholder="Search notes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem 1rem",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border-color)",
+                  background: "var(--card-bg)",
+                  color: "var(--text-primary)",
+                }}
+              />
+              <button type="submit" disabled={isLoadingNotes}>
+                <Search size={16} /> Search
+              </button>
+            </form>
+          )}
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+              gap: "1rem",
+            }}
+          >
+            {filteredNotes.length === 0 && !isLoadingNotes && (
+              <div
+                style={{
+                  gridColumn: "1/-1",
+                  textAlign: "center",
+                  padding: "2rem",
+                  opacity: 0.6,
+                }}
+              >
+                {searchQuery
+                  ? "No notes match your search."
+                  : "No notes found."}
+              </div>
+            )}
+            {filteredNotes.map((note) => {
+              const isSelected = selectedNotes.includes(note.id);
+              const linkedIds = getLinkedNoteIds(note.id);
+              return (
+                <NoteCard
+                  key={note.id}
+                  note={note}
+                  isSelected={isSelected}
+                  onSelect={() => toggleSelect(note.id)}
+                  onUpdate={handleUpdateNote}
+                  onDeleteNote={handleDeleteNote}
+                  linkedCount={linkedIds.length}
+                />
+              );
+            })}
+          </div>
+
+          {/* Load More Button */}
+          {viewMode === "all" && hasMore && (
+            <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
+              <button
+                onClick={loadMoreNotes}
+                disabled={isLoadingNotes}
+                style={{
+                  background: "var(--primary-color)",
+                  minWidth: "200px",
+                }}
+              >
+                {isLoadingNotes ? (
+                  <>
+                    <Loader2 size={16} className="spin" /> Loading...
+                  </>
+                ) : (
+                  `Load More (${totalNotes - notes.length} remaining)`
+                )}
+              </button>
             </div>
           )}
-          {filteredNotes.map((note) => {
-            const isSelected = selectedNotes.includes(note.id);
-            const linkedIds = getLinkedNoteIds(note.id);
-            return (
-              <NoteCard
-                key={note.id}
-                note={note}
-                isSelected={isSelected}
-                onSelect={() => toggleSelect(note.id)}
-                onUpdate={handleUpdateNote}
-                onDeleteNote={handleDeleteNote}
-                linkedCount={linkedIds.length}
-              />
-            );
-          })}
-        </div>
+        </>
       )}
     </div>
   );

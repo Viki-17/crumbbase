@@ -40,7 +40,15 @@ function broadcast(bookId, data) {
 // RabbitMQ Event Listener for SSE
 rabbitmq.consumeEvents((event) => {
   const { bookId, type, ...payload } = event;
-  if (bookId) {
+
+  // Handle global folder events
+  if (
+    type === "foldersProcessing" ||
+    type === "foldersDone" ||
+    type === "foldersError"
+  ) {
+    broadcast("folders", { type, ...payload });
+  } else if (bookId) {
     broadcast(bookId, { type, ...payload });
   }
 });
@@ -64,7 +72,7 @@ router.get("/books", async (req, res) => {
         // If book has chapters, check if all are actually done
         if (b.chapters && b.chapters.length > 0) {
           const chapters = await Promise.all(
-            b.chapters.map((chapId) => storage.getChapter(chapId))
+            b.chapters.map((chapId) => storage.getChapter(chapId)),
           );
 
           const allChaptersDone = chapters.every((chap) => {
@@ -92,7 +100,7 @@ router.get("/books", async (req, res) => {
           status: effectiveStatus,
           chunkCount: b.chapters ? b.chapters.length : 0,
         };
-      })
+      }),
     );
 
     res.json(booksWithEffectiveStatus);
@@ -132,8 +140,17 @@ router.get("/books/:id", async (req, res) => {
 
 router.get("/notes", async (req, res) => {
   try {
-    const notes = await storage.getAllNotes();
-    res.json(notes);
+    if (req.query.all === "true") {
+      const notes = await storage.getAllNotes();
+      return res.json(notes);
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search || "";
+
+    const result = await storage.getNotesWithPagination(page, limit, search);
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -425,7 +442,7 @@ router.post("/links/explain", async (req, res) => {
 
     const explanation = await aiService.explainLinkRelationship(
       { title: noteA.title, content: noteA.content, tags: noteA.tags },
-      { title: noteB.title, content: noteB.content, tags: noteB.tags }
+      { title: noteB.title, content: noteB.content, tags: noteB.tags },
     );
     res.json({ explanation });
   } catch (err) {
@@ -477,7 +494,7 @@ router.post("/notes/:id/suggest-links", async (req, res) => {
     // We need embedding. If missing, generate it.
     if (!note.embedding || note.embedding.length === 0) {
       note.embedding = await embeddingService.generateEmbedding(
-        `${note.title}\n${note.content}`
+        `${note.title}\n${note.content}`,
       );
       await storage.saveNote(note);
     }
@@ -489,23 +506,90 @@ router.post("/notes/:id/suggest-links", async (req, res) => {
   }
 });
 
-// Auto Grouping (Folders) Endpoint
+// Auto Grouping (Folders) Endpoint - Now uses queue for async processing
 router.post("/folders/generate", async (req, res) => {
   try {
-    const notes = await storage.getAllNotes();
-    if (notes.length === 0) return res.json({ folders: [] });
+    // Queue the job instead of processing synchronously
+    await rabbitmq.publishJob({
+      type: "folder_organize",
+      bookId: "global", // Not book-specific
+      payload: {},
+    });
 
-    const structure = await aiService.generateFolderStructure(notes);
-    await storage.saveFolders(structure.folders || []);
-    res.json(structure);
+    res.json({ message: "Folder organization started", status: "processing" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// SSE for folder organization events
+router.get("/folders/events", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  if (!clients["folders"]) clients["folders"] = [];
+  clients["folders"].push(res);
+
+  req.on("close", () => {
+    clients["folders"] = clients["folders"].filter((c) => c !== res);
+  });
+});
+
 router.get("/folders", async (req, res) => {
   try {
     const folders = await storage.getFolders();
+    res.json({ folders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Create a folder
+router.post("/folders", async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: "Folder name required" });
+
+    const folders = await storage.createFolder(name);
+    res.json({ folders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update a folder
+router.put("/folders/:name", async (req, res) => {
+  try {
+    const { name: newName, noteIds } = req.body;
+    const folders = await storage.updateFolder(req.params.name, {
+      name: newName || req.params.name,
+      noteIds,
+    });
+    res.json({ folders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a folder
+router.delete("/folders/:name", async (req, res) => {
+  try {
+    const folders = await storage.deleteFolder(req.params.name);
+    res.json({ folders });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add note to folder (auto-creates folder if needed)
+router.post("/folders/:name/notes", async (req, res) => {
+  try {
+    const { noteId } = req.body;
+    if (!noteId) return res.status(400).json({ error: "noteId required" });
+
+    const folders = await storage.addNoteToFolder(req.params.name, noteId);
     res.json({ folders });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -577,7 +661,7 @@ router.post("/books", upload.single("file"), async (req, res) => {
         }
       } catch (cleanupErr) {
         console.error(
-          `[Server] Failed to delete uploaded PDF: ${cleanupErr.message}`
+          `[Server] Failed to delete uploaded PDF: ${cleanupErr.message}`,
         );
       }
     }

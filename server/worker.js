@@ -12,6 +12,8 @@ const {
   getChapterSummary,
   deleteNotesByChapter,
   saveGraph,
+  getAllNotes,
+  saveFolders,
 } = require("./services/storage");
 const aiService = require("./services/ai-service");
 const embeddingService = require("./services/embeddings");
@@ -38,8 +40,8 @@ async function processJob(job) {
   const { type, bookId, chapterId, stage, payload } = job;
   console.log(`[Worker] Processing Job: ${type} for ${chapterId || bookId}`);
 
-  // PRE-EXECUTION CHECK
-  if (await isCancelled(bookId, chapterId)) {
+  // PRE-EXECUTION CHECK - Skip for global jobs like folder_organize
+  if (type !== "folder_organize" && (await isCancelled(bookId, chapterId))) {
     console.log(`[Worker] Job Cancelled (Data missing): ${type}`);
     return;
   }
@@ -57,6 +59,9 @@ async function processJob(job) {
         break;
       case "book_analysis":
         await handleBookAnalysis(bookId, payload); // payload might contain chapterIds
+        break;
+      case "folder_organize":
+        await handleFolderOrganize();
         break;
       default:
         console.error(`Unknown job type: ${type}`);
@@ -122,7 +127,7 @@ async function handleOverview(bookId, chapterId) {
       currentOverview += token;
       // OPTIONAL: Publish stream event (might be too chatty for RabbitMQ? It's fine for local docker usually)
       // rabbitmq.publishEvent({ type: "overviewStream", bookId, chapterId, token });
-    }
+    },
   );
 
   // 3. POST-EXECUTION CHECK
@@ -185,7 +190,7 @@ async function handleAnalysis(bookId, chapterId) {
 
   const summaryJSON = await aiService.generateStructuredSummary(
     chapter.rawText,
-    bookType
+    bookType,
   );
 
   if (await isCancelled(bookId, chapterId)) return;
@@ -222,12 +227,12 @@ async function handleNotes(bookId, chapterId) {
   // Check if analysis was completed - notes require analysis data
   if (chapter.analysisStatus !== "completed") {
     console.warn(
-      `[Worker] Analysis not completed for ${chapterId}, status: ${chapter.analysisStatus}`
+      `[Worker] Analysis not completed for ${chapterId}, status: ${chapter.analysisStatus}`,
     );
     throw new Error(
       `Cannot generate notes - analysis stage is ${
         chapter.analysisStatus || "pending"
-      }. Run analysis first.`
+      }. Run analysis first.`,
     );
   }
 
@@ -257,7 +262,7 @@ async function handleNotes(bookId, chapterId) {
     (!summary.keyConcepts || summary.keyConcepts.length === 0)
   ) {
     throw new Error(
-      "Summary has no usable content for notes generation - analysis may have failed"
+      "Summary has no usable content for notes generation - analysis may have failed",
     );
   }
 
@@ -279,7 +284,7 @@ async function handleNotes(bookId, chapterId) {
   const notesPromises = notesData.map(async (n) => {
     const noteId = uuidv4();
     const embedding = await embeddingService.generateEmbedding(
-      `${n.title}\n${n.content}`
+      `${n.title}\n${n.content}`,
     );
 
     // Suggest Links (this could be its own job if too slow)
@@ -389,15 +394,14 @@ async function handleBookAnalysis(bookId, payload) {
   }
 
   // All done? Generate analysis if not exists
-  const existingAnalysis = await require("./services/storage").getAnalysis(
-    bookId
-  ); // Avoiding circular dep issues if any, require inline ok?
+  const existingAnalysis =
+    await require("./services/storage").getAnalysis(bookId); // Avoiding circular dep issues if any, require inline ok?
   // We imported getAnalysis at top, let's use it.
 
   console.log(
     `[Worker] generating overall book analysis for ${bookId} (${
       book.bookType || "nonfiction"
-    })`
+    })`,
   );
 
   rabbitmq.publishEvent({
@@ -409,7 +413,7 @@ async function handleBookAnalysis(bookId, payload) {
   try {
     const analysisJSON = await aiService.generateOverallAnalysis(
       allSummaries,
-      book.bookType || "nonfiction"
+      book.bookType || "nonfiction",
     );
 
     if (await isCancelled(bookId)) return;
@@ -431,6 +435,52 @@ async function handleBookAnalysis(bookId, payload) {
   } catch (err) {
     console.error("Book Analysis Failed", err);
     // Don't fail the whole book?
+  }
+}
+
+async function handleFolderOrganize() {
+  console.log("[Worker] Starting folder organization...");
+
+  try {
+    rabbitmq.publishEvent({
+      type: "foldersProcessing",
+      message: "AI is organizing your notes into folders...",
+    });
+
+    const notes = await getAllNotes();
+
+    if (notes.length === 0) {
+      console.log("[Worker] No notes to organize");
+      rabbitmq.publishEvent({
+        type: "foldersDone",
+        folders: [],
+        message: "No notes to organize",
+      });
+      return;
+    }
+
+    console.log(`[Worker] Organizing ${notes.length} notes into folders...`);
+
+    const structure = await aiService.generateFolderStructure(notes);
+    const folders = structure.folders || [];
+
+    await saveFolders(folders);
+
+    console.log(
+      `[Worker] Folder organization complete: ${folders.length} folders created`,
+    );
+
+    rabbitmq.publishEvent({
+      type: "foldersDone",
+      folders,
+      message: `Organization complete! Created ${folders.length} folders`,
+    });
+  } catch (err) {
+    console.error("[Worker] Folder organization failed:", err);
+    rabbitmq.publishEvent({
+      type: "foldersError",
+      error: err.message,
+    });
   }
 }
 

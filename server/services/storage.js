@@ -1,6 +1,14 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
-const { Book, Chapter, Summary, Note, Analysis, Graph } = require("../models");
+const {
+  Book,
+  Chapter,
+  Summary,
+  Note,
+  Analysis,
+  Graph,
+  Folder,
+} = require("../models");
 
 // --- MongoDB Connection ---
 let isConnected = false;
@@ -150,6 +158,35 @@ const updateNote = async (id, updateData) => {
 const getAllNotes = async () => {
   await ensureConnected();
   return await Note.find().lean();
+};
+
+const getNotesWithPagination = async (page = 1, limit = 20, search = "") => {
+  await ensureConnected();
+  const skip = (page - 1) * limit;
+  const query = search
+    ? {
+        $or: [
+          { title: { $regex: search, $options: "i" } },
+          { content: { $regex: search, $options: "i" } },
+        ],
+      }
+    : {};
+
+  const [notes, total] = await Promise.all([
+    Note.find(query).skip(skip).limit(limit).lean(),
+    Note.countDocuments(query),
+  ]);
+
+  return {
+    notes,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: page * limit < total,
+    },
+  };
 };
 
 const deleteNote = async (id) => {
@@ -315,9 +352,66 @@ const saveFolders = async (folders) => {
   await ensureConnected();
   await Folder.findOneAndUpdate(
     { id: "folder-metadata" },
-    { folders, updatedAt: new Date() },
+    { id: "folder-metadata", folders, updatedAt: new Date() },
     { upsert: true }
   );
+};
+
+const createFolder = async (folderName) => {
+  await ensureConnected();
+  const doc = await Folder.findOne({ id: "folder-metadata" }).lean();
+  const folders = doc?.folders || [];
+
+  if (folders.some((f) => f.name === folderName)) {
+    throw new Error("Folder already exists");
+  }
+
+  folders.push({ name: folderName, noteIds: [] });
+  await saveFolders(folders);
+  return folders;
+};
+
+const updateFolder = async (folderName, updates) => {
+  await ensureConnected();
+  const doc = await Folder.findOne({ id: "folder-metadata" }).lean();
+  const folders = doc?.folders || [];
+
+  const index = folders.findIndex((f) => f.name === folderName);
+  if (index === -1) throw new Error("Folder not found");
+
+  folders[index] = { ...folders[index], ...updates };
+  await saveFolders(folders);
+  return folders;
+};
+
+const deleteFolder = async (folderName) => {
+  await ensureConnected();
+  const doc = await Folder.findOne({ id: "folder-metadata" }).lean();
+  let folders = doc?.folders || [];
+
+  folders = folders.filter((f) => f.name !== folderName);
+  await saveFolders(folders);
+  return folders;
+};
+
+const addNoteToFolder = async (folderName, noteId) => {
+  await ensureConnected();
+  const doc = await Folder.findOne({ id: "folder-metadata" }).lean();
+  let folders = doc?.folders || [];
+
+  let folder = folders.find((f) => f.name === folderName);
+  if (!folder) {
+    // Auto-create folder if it doesn't exist
+    folder = { name: folderName, noteIds: [] };
+    folders.push(folder);
+  }
+
+  if (!folder.noteIds.includes(noteId)) {
+    folder.noteIds.push(noteId);
+  }
+
+  await saveFolders(folders);
+  return folders;
 };
 
 // --- Export ---
@@ -328,7 +422,6 @@ module.exports = {
   getBook,
   getAllBooks,
   deleteBook,
-  // Chapters
   // Chapters
   saveChapter,
   getChapter,
@@ -341,6 +434,7 @@ module.exports = {
   getNote,
   updateNote,
   getAllNotes,
+  getNotesWithPagination,
   deleteNote,
   deleteNotesByChapter,
   // Analysis
@@ -357,6 +451,11 @@ module.exports = {
   removeEdge,
   getEdgesForNote,
   getNoteLinks,
+  // Folders
   getFolders,
   saveFolders,
+  createFolder,
+  updateFolder,
+  deleteFolder,
+  addNoteToFolder,
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import axios from "axios";
 import api from "../api";
 import { toast } from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
@@ -52,7 +53,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
       }
     } catch (err) {
       if (
-        !api.isCancel(err) &&
+        !axios.isCancel(err) &&
         err.name !== "CanceledError" &&
         err.name !== "AbortError"
       ) {
@@ -100,7 +101,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
         setStatusMsg("");
         // Only clear loading step if it was for the affected chapter
         setLoadingStep((prev) =>
-          prev && prev.chapterId === data.chapterId ? null : prev
+          prev && prev.chapterId === data.chapterId ? null : prev,
         );
       } else if (data.type === "chapterStatus") {
         // Optimistically update chapter status in local state
@@ -109,7 +110,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
           return {
             ...prev,
             chapters: prev.chapters.map((c) =>
-              c.id === data.chapterId ? { ...c, status: data.status } : c
+              c.id === data.chapterId ? { ...c, status: data.status } : c,
             ),
           };
         });
@@ -124,12 +125,12 @@ const BookDashboard = ({ bookId, onDelete }) => {
   }, [bookId]);
 
   useEffect(() => {
-    api.get("/notes").then((res) => setAllNotes(res.data));
+    api.get("/notes?all=true").then((res) => setAllNotes(res.data));
   }, [book]); // Refresh notes when book updates (e.g. generation done)
 
   const handleUpdateNote = (updatedNote) => {
     setAllNotes((prev) =>
-      prev.map((n) => (n.id === updatedNote.id ? updatedNote : n))
+      prev.map((n) => (n.id === updatedNote.id ? updatedNote : n)),
     );
   };
 
@@ -174,7 +175,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
         chapters: prevBook.chapters.map((c) =>
           c.id === selectedChapterId
             ? { ...c, [`${step}Status`]: "processing" }
-            : c
+            : c,
         ),
       };
     });
@@ -216,7 +217,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
         chapters: prev.chapters.map((c) =>
           c.id === selectedChapterId
             ? { ...c, [`${stage}Status`]: "skipped" }
-            : c
+            : c,
         ),
       }));
     } catch (err) {
@@ -227,7 +228,7 @@ const BookDashboard = ({ bookId, onDelete }) => {
   const handleRegenerateBook = async () => {
     if (
       !window.confirm(
-        "This will regenerate all AI content for this book. Continue?"
+        "This will regenerate all AI content for this book. Continue?",
       )
     ) {
       return;
@@ -295,13 +296,13 @@ const BookDashboard = ({ bookId, onDelete }) => {
   };
 
   const chapterNotes = allNotes.filter(
-    (n) => n.source?.chapterId === selectedChapterId
+    (n) => n.source?.chapterId === selectedChapterId,
   );
 
   if (!book) return <Loading message="Loading book details..." />;
 
   const selectedChapter = book.chapters?.find(
-    (c) => c.id === selectedChapterId
+    (c) => c.id === selectedChapterId,
   );
   const summary = selectedChapter?.summary;
 
@@ -488,22 +489,22 @@ const BookDashboard = ({ bookId, onDelete }) => {
                         effectiveStatus === "processing"
                           ? "rgba(245, 158, 11, 0.2)"
                           : effectiveStatus === "done"
-                          ? "rgba(16, 185, 129, 0.2)"
-                          : "rgba(239, 68, 68, 0.2)",
+                            ? "rgba(16, 185, 129, 0.2)"
+                            : "rgba(239, 68, 68, 0.2)",
                       color:
                         effectiveStatus === "processing"
                           ? "#fbbf24"
                           : effectiveStatus === "done"
-                          ? "#34d399"
-                          : "#f87171",
+                            ? "#34d399"
+                            : "#f87171",
                       border: "1px solid currentColor",
                     }}
                   >
                     {effectiveStatus === "processing"
                       ? "⏳ Processing"
                       : effectiveStatus === "done"
-                      ? "✅ Ready"
-                      : "Error"}
+                        ? "✅ Ready"
+                        : "Error"}
                   </span>
                 );
               })()}
