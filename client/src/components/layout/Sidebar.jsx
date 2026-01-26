@@ -8,8 +8,11 @@ import {
   Activity,
   ChevronDown,
   ChevronRight,
+  Youtube,
+  PenTool,
 } from "lucide-react";
 import "./../../styles/sidebar.css";
+import "./../../styles/sidebar-grouping.css";
 
 /**
  * Sidebar - Left navigation panel
@@ -97,29 +100,111 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
             )}
           </div>
           <div className="sidebar-section-content">
-            {books.map((book) => (
-              <div
-                key={book.id}
-                className={`sidebar-item ${
-                  selectedBook?.id === book.id ? "active" : ""
-                }`}
-                onClick={() => onSelectView("book", book.id)}
-              >
-                <BookOpen className="sidebar-item-icon" size={16} />
-                <span className="sidebar-item-text">{book.title}</span>
-                {book.status === "processing" && (
-                  <span className="sidebar-item-badge">⏳</span>
-                )}
-              </div>
-            ))}
-            {books.length === 0 && (
-              <div
-                className="sidebar-item"
-                style={{ color: "var(--text-tertiary)", cursor: "default" }}
-              >
-                No books yet
-              </div>
-            )}
+            {/* Books Group */}
+            {(() => {
+              const fiction = books.filter(
+                (b) =>
+                  (!b.sourceType || b.sourceType === "pdf") &&
+                  b.bookType === "fiction",
+              );
+              const nonfiction = books.filter(
+                (b) =>
+                  (!b.sourceType || b.sourceType === "pdf") &&
+                  b.bookType !== "fiction",
+              );
+              const youtube = books.filter((b) => b.sourceType === "youtube");
+              const blog = books.filter((b) => b.sourceType === "blog");
+
+              const hasBooks = fiction.length > 0 || nonfiction.length > 0;
+              const hasYoutube = youtube.length > 0;
+              const hasBlog = blog.length > 0;
+
+              if (!hasBooks && !hasYoutube && !hasBlog) {
+                return (
+                  <div
+                    className="sidebar-item"
+                    style={{ color: "var(--text-tertiary)", cursor: "default" }}
+                  >
+                    No items yet
+                  </div>
+                );
+              }
+
+              return (
+                <>
+                  {/* Books Sub-section */}
+                  {hasBooks && (
+                    <div className="sidebar-group">
+                      <div className="sidebar-group-label">Books</div>
+                      {fiction.length > 0 && (
+                        <>
+                          <div className="sidebar-subgroup-label">Fiction</div>
+                          {fiction.map((book) => (
+                            <SidebarItem
+                              key={book.id}
+                              book={book}
+                              selectedBook={selectedBook}
+                              onSelectView={onSelectView}
+                              type="book"
+                            />
+                          ))}
+                        </>
+                      )}
+                      {nonfiction.length > 0 && (
+                        <>
+                          {fiction.length > 0 && (
+                            <div className="sidebar-subgroup-label">
+                              Non-Fiction
+                            </div>
+                          )}
+                          {nonfiction.map((book) => (
+                            <SidebarItem
+                              key={book.id}
+                              book={book}
+                              selectedBook={selectedBook}
+                              onSelectView={onSelectView}
+                              type="book"
+                            />
+                          ))}
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* YouTube Sub-section */}
+                  {hasYoutube && (
+                    <div className="sidebar-group">
+                      <div className="sidebar-group-label">YouTube</div>
+                      {youtube.map((book) => (
+                        <SidebarItem
+                          key={book.id}
+                          book={book}
+                          selectedBook={selectedBook}
+                          onSelectView={onSelectView}
+                          type="youtube"
+                        />
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Blog Sub-section */}
+                  {hasBlog && (
+                    <div className="sidebar-group">
+                      <div className="sidebar-group-label">Articles</div>
+                      {blog.map((book) => (
+                        <SidebarItem
+                          key={book.id}
+                          book={book}
+                          selectedBook={selectedBook}
+                          onSelectView={onSelectView}
+                          type="blog"
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 
@@ -210,6 +295,25 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
       </div>
 
       <div className="sidebar-footer">v8.0 - Modern UI</div>
+    </div>
+  );
+};
+
+const SidebarItem = ({ book, selectedBook, onSelectView, type }) => {
+  let Icon = BookOpen;
+  if (type === "youtube") Icon = Youtube;
+  if (type === "blog") Icon = PenTool;
+
+  return (
+    <div
+      className={`sidebar-item ${selectedBook?.id === book.id ? "active" : ""}`}
+      onClick={() => onSelectView("book", book.id)}
+    >
+      <Icon className="sidebar-item-icon" size={16} />
+      <span className="sidebar-item-text truncate">{book.title}</span>
+      {book.status === "processing" && (
+        <span className="sidebar-item-badge">⏳</span>
+      )}
     </div>
   );
 };

@@ -34,6 +34,31 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
     setEditedTitle("");
   };
 
+  // Type Editing State
+  const [isEditingType, setIsEditingType] = useState(false);
+  const [editedBookType, setEditedBookType] = useState("nonfiction");
+  const [editedSourceType, setEditedSourceType] = useState("book");
+
+  const handleSaveType = async () => {
+    try {
+      const payloadSource =
+        editedSourceType === "book" ? null : editedSourceType;
+      await api.patch(`/books/${bookId}`, {
+        bookType: editedBookType,
+        sourceType: payloadSource,
+      });
+      setBook((prev) => ({
+        ...prev,
+        bookType: editedBookType,
+        sourceType: payloadSource,
+      }));
+      setIsEditingType(false);
+      toast.success("Book type updated");
+    } catch (err) {
+      toast.error("Failed to update type");
+    }
+  };
+
   // Local loading states for manual triggers
   const [loadingStep, setLoadingStep] = useState(null); // { chapterId: string, step: string } or null
   const abortControllerRef = useRef(null);
@@ -562,6 +587,114 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
               <span className="text-secondary">
                 {book.chapters?.length} Chapters
               </span>
+              <span style={{ color: "var(--border-color)" }}>|</span>
+
+              {isEditingType ? (
+                <div
+                  style={{ display: "flex", gap: "5px", alignItems: "center" }}
+                >
+                  <select
+                    value={editedSourceType}
+                    onChange={(e) => setEditedSourceType(e.target.value)}
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontSize: "0.8rem",
+                      background: "var(--bg-main)",
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    <option value="book">Book (PDF)</option>
+                    <option value="youtube">YouTube</option>
+                    <option value="blog">Article</option>
+                  </select>
+
+                  <select
+                    value={editedBookType}
+                    onChange={(e) => setEditedBookType(e.target.value)}
+                    style={{
+                      padding: "2px 6px",
+                      borderRadius: "4px",
+                      fontSize: "0.8rem",
+                      background: "var(--bg-main)",
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border-color)",
+                    }}
+                  >
+                    <option value="nonfiction">Non-Fiction</option>
+                    <option value="fiction">Fiction</option>
+                  </select>
+
+                  <button
+                    onClick={handleSaveType}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "1rem",
+                      padding: "0 4px",
+                    }}
+                    title="Save"
+                  >
+                    ✅
+                  </button>
+                  <button
+                    onClick={() => setIsEditingType(false)}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      fontSize: "0.8rem",
+                      padding: "0 4px",
+                    }}
+                    title="Cancel"
+                  >
+                    ❌
+                  </button>
+                </div>
+              ) : (
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                >
+                  <span
+                    className="text-secondary"
+                    style={{
+                      background: "var(--bg-surface-2)",
+                      padding: "2px 8px",
+                      borderRadius: "12px",
+                      fontSize: "0.8rem",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    <span>
+                      {book.sourceType === "youtube"
+                        ? "YouTube"
+                        : book.sourceType === "blog"
+                          ? "Article"
+                          : "Book"}
+                    </span>
+                    <span style={{ opacity: 0.3 }}>•</span>
+                    <span>
+                      {book.bookType === "fiction" ? "Fiction" : "Non-Fiction"}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => {
+                      setEditedBookType(book.bookType || "nonfiction");
+                      setEditedSourceType(book.sourceType || "book");
+                      setIsEditingType(true);
+                    }}
+                    className="btn-ghost btn-icon"
+                    style={{ padding: "2px", height: "auto", minHeight: "0" }}
+                    title="Edit Type"
+                  >
+                    ✏️
+                  </button>
+                </div>
+              )}
               {(() => {
                 // Compute effective status: check if all chapters are actually done
                 const allChaptersDone = book.chapters?.every((chap) => {

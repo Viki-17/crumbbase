@@ -99,6 +99,9 @@ router.get("/books", async (req, res) => {
           title: b.title,
           status: effectiveStatus,
           chunkCount: b.chapters ? b.chapters.length : 0,
+          createdAt: b.createdAt,
+          bookType: b.bookType,
+          sourceType: b.sourceType,
         };
       }),
     );
@@ -799,12 +802,14 @@ router.post("/books", upload.single("file"), async (req, res) => {
 // Update Book (e.g. Rename)
 router.patch("/books/:id", async (req, res) => {
   try {
-    const { title } = req.body;
+    const { title, bookType, sourceType } = req.body;
     const book = await storage.getBook(req.params.id);
     if (!book) return res.status(404).json({ error: "Book not found" });
 
     const updatedBook = { ...book };
     if (title) updatedBook.title = title;
+    if (bookType) updatedBook.bookType = bookType;
+    if (sourceType) updatedBook.sourceType = sourceType;
 
     await storage.saveBook(updatedBook);
     res.json(updatedBook);

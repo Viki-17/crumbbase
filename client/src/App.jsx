@@ -8,6 +8,7 @@ import FolderView from "./components/views/FolderView";
 import BookDashboard from "./components/BookDashboard";
 import BookInput from "./components/BookInput";
 import NotesExplorer from "./components/NotesExplorer";
+import HomeView from "./components/views/HomeView";
 import Loading from "./components/layout/Loading";
 import "./styles/main-content.css";
 
@@ -172,126 +173,12 @@ function App() {
       case "home":
       default:
         return (
-          <div className="container" style={{ padding: "var(--space-xl)" }}>
-            <BookInput onBookAdded={handleBookAdded} />
-
-            <div style={{ marginTop: "3rem" }}>
-              <h2
-                style={{ marginBottom: "1.5rem", color: "var(--text-primary)" }}
-              >
-                Your Library
-              </h2>
-              {loading ? (
-                <Loading message="Fetching your library..." />
-              ) : books.length === 0 ? (
-                <div
-                  className="text-secondary"
-                  style={{ textAlign: "center", padding: "2rem" }}
-                >
-                  No books added yet.
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "1.5rem",
-                    gridTemplateColumns:
-                      "repeat(auto-fill, minmax(280px, 1fr))",
-                  }}
-                >
-                  {books.map((book) => (
-                    <div
-                      key={book.id}
-                      onClick={() => handleSelectView("book", book.id)}
-                      className="card book-card"
-                      style={{
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        position: "relative",
-                        overflow: "hidden",
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.transform = "translateY(-4px)";
-                        e.currentTarget.style.borderColor =
-                          "var(--primary-color)";
-                        e.currentTarget.style.boxShadow = "var(--shadow-lg)";
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.transform = "translateY(0)";
-                        e.currentTarget.style.borderColor =
-                          "var(--border-color)";
-                        e.currentTarget.style.boxShadow = "var(--shadow-sm)";
-                      }}
-                    >
-                      <div
-                        className="flex-between"
-                        style={{ alignItems: "flex-start" }}
-                      >
-                        <h3
-                          className="truncate"
-                          style={{
-                            fontSize: "1.25rem",
-                            margin: "0 0 0.5rem 0",
-                            color: "var(--text-primary)",
-                          }}
-                          title={book.title}
-                        >
-                          {book.title}
-                        </h3>
-                      </div>
-                      <p
-                        className="text-secondary"
-                        style={{ fontSize: "0.9rem", marginBottom: "1rem" }}
-                      >
-                        {book.chunkCount} Chapters
-                      </p>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.75rem",
-                            padding: "2px 8px",
-                            borderRadius: "12px",
-                            background:
-                              book.status === "done"
-                                ? "rgba(16, 185, 129, 0.1)"
-                                : book.status === "processing"
-                                  ? "rgba(245, 158, 11, 0.1)"
-                                  : "var(--bg-surface-3)",
-                            color:
-                              book.status === "done"
-                                ? "var(--success)"
-                                : book.status === "processing"
-                                  ? "var(--warning)"
-                                  : "var(--text-tertiary)",
-                            border: "1px solid currentColor",
-                            fontWeight: "600",
-                          }}
-                        >
-                          {book.status === "processing"
-                            ? "⏳ Processing"
-                            : book.status === "done"
-                              ? "✅ Complete"
-                              : book.status}
-                        </span>
-                        <span
-                          className="text-secondary"
-                          style={{ fontSize: "0.8rem" }}
-                        >
-                          {new Date(book.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          <HomeView
+            books={books}
+            loading={loading}
+            onSelectBook={(id) => handleSelectView("book", id)}
+            onBookAdded={handleBookAdded}
+          />
         );
     }
   };

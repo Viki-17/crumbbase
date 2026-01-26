@@ -1,0 +1,20 @@
+/* Sidebar Grouping Styles */
+.sidebar-group {
+  margin-bottom: 12px;
+}
+
+.sidebar-group-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-tertiary);
+  margin: 8px 12px 4px 12px;
+  font-weight: 600;
+}
+
+.sidebar-subgroup-label {
+  font-size: 0.7rem;
+  color: var(--text-tertiary);
+  margin: 4px 12px 2px 20px;
+  opacity: 0.8;
+}

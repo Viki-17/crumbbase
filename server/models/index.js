@@ -7,6 +7,15 @@ const bookSchema = new mongoose.Schema({
   title: String,
   path: String,
   createdAt: { type: Date, default: Date.now },
+  bookType: {
+    type: String,
+    enum: ["fiction", "nonfiction"], // Note: index.js uses 'nonfiction' not 'non-fiction'
+    default: "nonfiction",
+  },
+  sourceType: {
+    type: String, // 'youtube', 'blog', or null (for regular books)
+    default: null,
+  },
   status: {
     type: String,
     enum: ["processing", "done", "error"],
