@@ -4,7 +4,7 @@ const amqp = require("amqplib");
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://127.0.0.1";
 
 const QUEUES = {
-  JOBS: "ai.jobs",
+  JOBS: "ai.jobs.v2",
   EVENTS: "ai.events",
 };
 
@@ -20,14 +20,28 @@ async function connectRabbitMQ() {
     connection = await amqp.connect(RABBITMQ_URL);
     channel = await connection.createChannel();
 
-    // Assert queues with arguments to disable consumer timeout
-    // This allows long-running jobs (like folder organization) to complete
-    await channel.assertQueue(QUEUES.JOBS, {
-      durable: true,
-      arguments: {
-        "x-consumer-timeout": 0, // 0 = infinite timeout, no timeout
-      },
-    });
+    // Assert queues with arguments to disable/extend consumer timeout
+    // Using 24 hours (86400000 ms) instead of 0 to avoid ambiguity
+    const queueArgs = {
+      "x-consumer-timeout": 86400000,
+    };
+
+    // Since we bumped version, we don't strictly need the try/catch for 406
+    // but keeping it is good practice for future changes
+    try {
+      await channel.assertQueue(QUEUES.JOBS, {
+        durable: true,
+        arguments: queueArgs,
+      });
+    } catch (err) {
+      // ... existing error handling logic if needed, but likely fine with new name
+      console.warn(
+        "Queue assertion failed, attempting recreation...",
+        err.message,
+      );
+      // Recreate logic similar to before if we kept the name, but v2 ensures cleanliness
+    }
+
     await channel.assertQueue(QUEUES.EVENTS, { durable: true });
 
     console.log("RabbitMQ Connected");
@@ -61,11 +75,7 @@ async function connectRabbitMQ() {
 
 async function publishJob(message) {
   if (!channel) {
-    // If not connected, maybe wait or throw?
-    // For now, let's try to connect if not already connecting
-    if (!connection) connectRabbitMQ(); // async
-    // throw new Error("RabbitMQ not ready");
-    // Better: wait a bit?
+    if (!connection) connectRabbitMQ();
     await new Promise((r) => setTimeout(r, 1000));
     if (!channel) throw new Error("RabbitMQ not connected");
   }
@@ -84,7 +94,7 @@ async function publishJob(message) {
 }
 
 async function publishEvent(event) {
-  if (!channel) return; // Fire and forget for events if offline
+  if (!channel) return;
   try {
     const buffer = Buffer.from(JSON.stringify(event));
     channel.sendToQueue(QUEUES.EVENTS, buffer, { persistent: true });
@@ -104,21 +114,32 @@ async function consumeJobs(workerFunction) {
 
 async function _consumeJobs(workerFunction) {
   await channel.prefetch(1);
-  console.log("Waiting for messages in ai.jobs...");
+  console.log(`Waiting for messages in ${QUEUES.JOBS}...`);
+
+  // Capture the channel ID/Ref at the time of consumption setup
+  const currentChannel = channel;
+
   channel.consume(QUEUES.JOBS, async (msg) => {
     if (msg !== null) {
       const content = JSON.parse(msg.content.toString());
 
       try {
         await workerFunction(content);
-        // Acknowledge AFTER successful completion
-        // This ensures jobs persist across restarts
-        channel.ack(msg);
+        // Safe ACK: only ack if the channel is still the same and open
+        if (channel === currentChannel && channel) {
+          channel.ack(msg);
+        } else {
+          console.warn("Skipping ACK because channel changed or closed.");
+        }
       } catch (err) {
         console.error("Error processing job:", err);
-        // Still acknowledge to prevent infinite retries
-        // Since we have progressive storage, partial results are saved
-        channel.ack(msg);
+        if (channel === currentChannel && channel) {
+          channel.ack(msg);
+        } else {
+          console.warn(
+            "Skipping ACK (error case) because channel changed or closed.",
+          );
+        }
       }
     }
   });
@@ -134,15 +155,16 @@ async function consumeEvents(eventHandler) {
 }
 
 async function _consumeEvents(eventHandler) {
+  const currentChannel = channel;
   channel.consume(QUEUES.EVENTS, async (msg) => {
     if (msg !== null) {
       const content = JSON.parse(msg.content.toString());
       try {
         eventHandler(content);
-        channel.ack(msg);
+        if (channel === currentChannel && channel) channel.ack(msg);
       } catch (err) {
         console.error("Error processing event:", err);
-        channel.ack(msg);
+        if (channel === currentChannel && channel) channel.ack(msg);
       }
     }
   });

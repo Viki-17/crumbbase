@@ -34,9 +34,11 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
   const [hasMore, setHasMore] = useState(false);
   const [totalNotes, setTotalNotes] = useState(0);
   const [isLoadingNotes, setIsLoadingNotes] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [askQuery, setAskQuery] = useState("");
-  const [askResults, setAskResults] = useState([]);
+  const [searchQuery, setSearchQuery] = useState(
+    initialState?.searchQuery || "",
+  );
+  const [askQuery, setAskQuery] = useState(initialState?.askQuery || "");
+  const [askResults, setAskResults] = useState(initialState?.askResults || []);
   const [isAsking, setIsAsking] = useState(false);
 
   const [selectedNotes, setSelectedNotes] = useState([]);
@@ -300,6 +302,9 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
       viewMode,
       expandedFolders,
       notes, // Keep notes so we don't have to refetch or lose scrolling? (though App refetches)
+      askQuery,
+      askResults,
+      searchQuery,
     };
     onSelectView("note", noteId, currentState);
   };

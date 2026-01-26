@@ -164,39 +164,74 @@ async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
     `;
 
   const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
-  console.log("[AI Service] Generating structured summary...");
-  try {
-    const response = await ollama.chat({
-      model: "gemma3:4b",
-      messages: [{ role: "user", content: prompt }],
-      format: "json",
-      stream: false,
-    });
+  console.log(
+    "[AI Service] Generating structured summary (with retry capability)...",
+  );
 
-    const parsed = JSON.parse(response.message.content);
-    console.log(
-      "[AI Service] Structured summary response:",
-      JSON.stringify(parsed).substring(0, 300),
-    );
+  let attempts = 0;
+  const maxAttempts = 3;
 
-    // Validate the response has required fields
-    if (
-      !parsed.mainIdea &&
-      (!parsed.keyConcepts || parsed.keyConcepts.length === 0)
-    ) {
-      console.error(
-        "[AI Service] Structured summary missing required fields:",
-        parsed,
+  console.log(
+    chapterText.substring(0, 15000),
+    "=====================================",
+    chapterText,
+  );
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      console.log(
+        `[AI Service] Attempt ${attempts}/${maxAttempts} for structured summary...`,
       );
-      throw new Error(
-        "AI returned invalid structured summary - missing mainIdea and keyConcepts",
+      const response = await ollama.chat({
+        model: "gemma3:4b",
+        messages: [{ role: "user", content: prompt }],
+        format: "json",
+        stream: false,
+      });
+      console.log("response", response);
+
+      console.log(
+        "[AI Service] Raw AI Response:",
+        response.message.content.substring(0, 500), // Log first 500 chars for debugging
       );
+
+      const parsed = JSON.parse(response.message.content);
+      console.log(
+        "[AI Service] Structured summary response:",
+        JSON.stringify(parsed).substring(0, 300),
+      );
+
+      // Validate the response has required fields
+      if (
+        !parsed.mainIdea &&
+        (!parsed.keyConcepts || parsed.keyConcepts.length === 0)
+      ) {
+        console.warn(
+          `[AI Service] Structured summary attempt ${attempts} missing required fields:`,
+          parsed,
+        );
+        if (attempts === maxAttempts) {
+          throw new Error(
+            "AI returned invalid structured summary after multiple attempts - missing mainIdea and keyConcepts",
+          );
+        }
+        continue; // Retry
+      }
+
+      return parsed;
+    } catch (error) {
+      console.warn(
+        `[AI Service] Structured summary attempt ${attempts} failed:`,
+        error.message,
+      );
+      if (attempts === maxAttempts) {
+        console.error("AI Service Error (Summary):", error);
+        throw error;
+      }
+      // Small delay before retry
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
-
-    return parsed;
-  } catch (error) {
-    console.error("AI Service Error (Summary):", error);
-    throw error;
   }
 }
 
@@ -409,79 +444,152 @@ ${JSON.stringify(noteB)}
   }
 }
 
-async function generateFolderStructure(allNotes, onProgress = null) {
-  // 1. Generate Taxonomy First (using just titles)
-  console.log(
-    `[AI Service] Generating folder taxonomy for ${allNotes.length} notes...`,
-  );
-
-  // Extract titles for taxonomy generation (limit to 100 random titles if too many to avoid context blowout)
-  const MAX_TITLES_FOR_TAXONOMY = 100;
-  const titlesForTaxonomy = allNotes
-    .map((n) => n.title)
-    .sort(() => 0.5 - Math.random()) // Shuffle
-    .slice(0, MAX_TITLES_FOR_TAXONOMY);
-
-  const taxonomyPrompt = `
-    You are an expert knowledge architect.
-    
-    TASK:
-    Create a set of 8-12 distinct, high-level folder names to organize a personal knowledge base.
-    Base the categories on the sample note titles provided below.
-    
-    RULES:
-    - Folders must be mutually exclusive and collectively exhaustive where possible.
-    - Use clear, professional names (e.g., "Productivity", "Mental Models", "Technology").
-    - Return ONLY a JSON array of strings.
-    
-    SAMPLE TITLES:
-    ${JSON.stringify(titlesForTaxonomy)}
-  `;
-
+async function generateFolderStructure(
+  allNotes,
+  onProgress = null,
+  existingFolders = null,
+) {
   let folderNames = [];
-  try {
-    const response = await ollama.chat({
-      model: "gemma3:4b",
-      messages: [{ role: "user", content: taxonomyPrompt }],
-      format: "json",
-      stream: false,
-    });
 
-    // Handle potential object wrapper { "folders": [...] } or direct array
-    const parsed = JSON.parse(response.message.content);
-    if (Array.isArray(parsed)) {
-      folderNames = parsed;
-    } else if (parsed.folders && Array.isArray(parsed.folders)) {
-      folderNames = parsed.folders;
-    } else {
-      // Fallback
-      folderNames = ["General", "Concepts", "Projects", "Archive"];
+  // 1. Determine Logic: Start Fresh or Resume
+  if (
+    existingFolders &&
+    Array.isArray(existingFolders) &&
+    existingFolders.length > 0
+  ) {
+    console.log(
+      `[AI Service] Resuming folder organization with ${existingFolders.length} existing folders.`,
+    );
+    // Extract names from existing folders
+    folderNames = existingFolders
+      .map((f) => f.name)
+      .filter((n) => n !== "Uncategorized");
+
+    // If for some reason names are empty (edge case), strictly fallback or just use what we have
+    if (folderNames.length === 0) {
+      // Should rarely happen if length > 0, but maybe only "Uncategorized" exists?
+      // Fallback to generating new ones if truly empty
+      console.log(
+        "[AI Service] Existing folders were empty or only Uncategorized. Generating new taxonomy.",
+      );
     }
-    console.log(`[AI Service] Generated taxonomy: ${folderNames.join(", ")}`);
-  } catch (error) {
-    console.error("Failed to generate taxonomy, using default", error);
-    folderNames = [
-      "General",
-      "Mental Models",
-      "Technology",
-      "Health",
-      "Business",
-      "Philosophy",
-    ];
   }
 
-  // 2. Assign Notes to Folders in Batches
-  const BATCH_SIZE = 20;
+  // Generate Taxonomy ONLY if we didn't get valid names from existing folders
+  if (folderNames.length === 0) {
+    console.log(
+      `[AI Service] Generating folder taxonomy for ${allNotes.length} notes...`,
+    );
+
+    // Extract titles for taxonomy generation (limit to 100 random titles if too many to avoid context blowout)
+    const MAX_TITLES_FOR_TAXONOMY = 100;
+    const titlesForTaxonomy = allNotes
+      .map((n) => n.title)
+      .sort(() => 0.5 - Math.random()) // Shuffle
+      .slice(0, MAX_TITLES_FOR_TAXONOMY);
+
+    const taxonomyPrompt = `
+      You are an expert knowledge architect.
+      
+      TASK:
+      Create a set of 8-12 distinct, high-level folder names to organize a personal knowledge base.
+      Base the categories on the sample note titles provided below.
+      
+      RULES:
+      - Folders must be mutually exclusive and collectively exhaustive where possible.
+      - Use clear, professional names (e.g., "Productivity", "Mental Models", "Technology").
+      - Return ONLY a JSON array of strings.
+      
+      SAMPLE TITLES:
+      ${JSON.stringify(titlesForTaxonomy)}
+    `;
+
+    try {
+      const response = await ollama.chat({
+        model: "gemma3:4b",
+        messages: [{ role: "user", content: taxonomyPrompt }],
+        format: "json",
+        stream: false,
+      });
+
+      // Handle potential object wrapper { "folders": [...] } or direct array
+      const parsed = JSON.parse(response.message.content);
+      if (Array.isArray(parsed)) {
+        folderNames = parsed;
+      } else if (parsed.folders && Array.isArray(parsed.folders)) {
+        folderNames = parsed.folders;
+      } else {
+        // Fallback
+        folderNames = ["General", "Concepts", "Projects", "Archive"];
+      }
+      console.log(`[AI Service] Generated taxonomy: ${folderNames.join(", ")}`);
+    } catch (error) {
+      console.error("Failed to generate taxonomy, using default", error);
+      folderNames = [
+        "General",
+        "Mental Models",
+        "Technology",
+        "Health",
+        "Business",
+        "Philosophy",
+      ];
+    }
+  } else {
+    console.log(
+      `[AI Service] Used existing taxonomy: ${folderNames.join(", ")}`,
+    );
+  }
+
+  // 2. Prepare for Assignment
   const finalFolders = {}; // Map<FolderName, NoteID[]>
 
-  // Initialize folders
-  folderNames.forEach((name) => (finalFolders[name] = []));
-  finalFolders["Uncategorized"] = [];
+  // Initialize with existing data if resuming
+  if (existingFolders) {
+    existingFolders.forEach((f) => {
+      finalFolders[f.name] = [...(f.noteIds || [])];
+    });
+  }
 
-  const totalBatches = Math.ceil(allNotes.length / BATCH_SIZE);
+  // Ensure all taxonomy folder names exist in the map
+  folderNames.forEach((name) => {
+    if (!finalFolders[name]) finalFolders[name] = [];
+  });
+  // Ensure Uncategorized exists
+  if (!finalFolders["Uncategorized"]) finalFolders["Uncategorized"] = [];
 
-  for (let i = 0; i < allNotes.length; i += BATCH_SIZE) {
-    const batch = allNotes.slice(i, i + BATCH_SIZE);
+  // Filter notes that are already processed
+  const processedNoteIds = new Set();
+  Object.values(finalFolders).forEach((ids) => {
+    ids.forEach((id) => processedNoteIds.add(id));
+  });
+
+  const notesToProcess = allNotes.filter((n) => !processedNoteIds.has(n.id));
+
+  if (notesToProcess.length === 0) {
+    console.log(
+      "[AI Service] All notes are already organized. Organization job complete.",
+    );
+    // Return current state immediately
+    return {
+      folders: Object.entries(finalFolders)
+        .filter(([_, ids]) => ids.length > 0)
+        .map(([name, ids]) => ({
+          name,
+          noteIds: ids,
+        })),
+    };
+  }
+
+  // 3. Assign Notes to Folders in Batches
+  const BATCH_SIZE = 20;
+  const totalBatches = Math.ceil(notesToProcess.length / BATCH_SIZE);
+
+  console.log(
+    `[AI Service] Processing ${notesToProcess.length} remaining notes in ${totalBatches} batches...`,
+  );
+
+  for (let i = 0; i < notesToProcess.length; i += BATCH_SIZE) {
+    const batch = notesToProcess.slice(i, i + BATCH_SIZE);
     const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
     console.log(
       `[AI Service] Processing batch ${batchNumber} of ${totalBatches}...`,
@@ -563,7 +671,7 @@ async function generateFolderStructure(allNotes, onProgress = null) {
     }
   }
 
-  // 3. Format Output
+  // 4. Format Output
   const result = {
     folders: Object.entries(finalFolders)
       .filter(([_, ids]) => ids.length > 0)

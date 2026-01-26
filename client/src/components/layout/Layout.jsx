@@ -22,7 +22,7 @@ const Layout = ({
   onSelectView,
   books = [],
 }) => {
-  const [contextPanelVisible, setContextPanelVisible] = useState(true);
+  const [contextPanelVisible, setContextPanelVisible] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   return (

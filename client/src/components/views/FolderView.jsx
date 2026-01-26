@@ -16,6 +16,7 @@ const FolderView = ({ onSelectNote, onBack }) => {
   const [allNotes, setAllNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [expandedFolders, setExpandedFolders] = useState({});
 
   useEffect(() => {
     fetchFoldersAndNotes();
@@ -44,12 +45,20 @@ const FolderView = ({ onSelectNote, onBack }) => {
       setGenerating(true);
       const res = await api.post("/folders/generate");
       setFolders(res.data.folders || []);
+      setExpandedFolders({}); // Reset expansion state on regeneration
     } catch (err) {
       console.error("Failed to generate folders:", err);
       alert("Failed to generate folders: " + err.message);
     } finally {
       setGenerating(false);
     }
+  };
+
+  const toggleFolder = (folderName) => {
+    setExpandedFolders((prev) => ({
+      ...prev,
+      [folderName]: !prev[folderName],
+    }));
   };
 
   const getNoteById = (noteId) => {
@@ -100,37 +109,76 @@ const FolderView = ({ onSelectNote, onBack }) => {
         </div>
       ) : (
         <div className="folder-list">
-          {folders.map((folder, idx) => (
-            <div key={idx} className="folder-card">
-              <div className="folder-card-header">
-                <div className="folder-card-title">
-                  <Folder size={20} />
-                  {folder.name}
-                </div>
-                <span className="folder-card-count">
-                  {folder.noteIds?.length || 0} notes
-                </span>
-              </div>
-
-              <div className="folder-card-notes">
-                {folder.noteIds?.map((noteId) => {
-                  const note = getNoteById(noteId);
-                  if (!note) return null;
-
-                  return (
+          {folders.map((folder, idx) => {
+            const isExpanded = !!expandedFolders[folder.name];
+            return (
+              <div key={idx} className="folder-card">
+                <div
+                  className="folder-card-header"
+                  onClick={() => toggleFolder(folder.name)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <div className="folder-card-title">
                     <div
-                      key={noteId}
-                      className="folder-note-item"
-                      onClick={() => onSelectNote && onSelectNote(noteId)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        transition: "transform 0.2s ease",
+                        transform: isExpanded
+                          ? "rotate(90deg)"
+                          : "rotate(0deg)",
+                        marginRight: "0.5rem",
+                      }}
                     >
-                      <FileText className="folder-note-icon" size={16} />
-                      <span className="folder-note-title">{note.title}</span>
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="m9 18 6-6-6-6" />
+                      </svg>
                     </div>
-                  );
-                })}
+                    <Folder size={20} />
+                    {folder.name}
+                  </div>
+                  <span className="folder-card-count">
+                    {folder.noteIds?.length || 0} notes
+                  </span>
+                </div>
+
+                {isExpanded && (
+                  <div className="folder-card-notes">
+                    {folder.noteIds?.map((noteId) => {
+                      const note = getNoteById(noteId);
+                      if (!note) return null;
+
+                      return (
+                        <div
+                          key={noteId}
+                          className="folder-note-item"
+                          onClick={(e) => {
+                            e.stopPropagation(); // Prevent toggling folder when clicking note
+                            onSelectNote && onSelectNote(noteId);
+                          }}
+                        >
+                          <FileText className="folder-note-icon" size={16} />
+                          <span className="folder-note-title">
+                            {note.title}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

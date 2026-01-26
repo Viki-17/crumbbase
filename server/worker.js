@@ -489,6 +489,9 @@ async function handleFolderOrganize() {
 
     console.log(`[Worker] Organizing ${notes.length} notes into folders...`);
 
+    // Fetch existing folders for resumption
+    const existingFolders = await require("./services/storage").getFolders();
+
     // Progressive callback - saves and publishes after each batch
     const onProgress = async (progress) => {
       console.log(
@@ -511,6 +514,7 @@ async function handleFolderOrganize() {
     const structure = await aiService.generateFolderStructure(
       notes,
       onProgress,
+      existingFolders, // Pass existing folders for resumption
     );
     const folders = structure.folders || [];
 
