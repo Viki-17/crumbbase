@@ -125,6 +125,11 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
             ),
           };
         });
+      } else if (data.type === "bookUpdate") {
+        setBook(data.book);
+        if (!selectedChapterId && data.book.chapters?.length > 0) {
+          setSelectedChapterId(data.book.chapters[0].id);
+        }
       } else if (data.type === "overviewStream") {
         setStreamingOverviews((prev) => ({
           ...prev,
