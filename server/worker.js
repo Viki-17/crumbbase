@@ -109,8 +109,11 @@ async function handleOverview(bookId, chapterId) {
 
   const book = await getBook(bookId);
   const bookType = book?.bookType || "nonfiction"; // Default for backward compat
+  const sourceType = book?.sourceType || null; // YouTube, blog, or null
 
-  console.log(`[Worker] Generating Overview for ${chapterId} (${bookType})`);
+  console.log(
+    `[Worker] Generating Overview for ${chapterId} (${bookType}, source: ${sourceType || "default"})`,
+  );
 
   // Update Status
   await updateChapter(chapterId, { overviewStatus: "processing" });
@@ -138,6 +141,7 @@ async function handleOverview(bookId, chapterId) {
       // OPTIONAL: Publish stream event (might be too chatty for RabbitMQ? It's fine for local docker usually)
       // rabbitmq.publishEvent({ type: "overviewStream", bookId, chapterId, token });
     },
+    sourceType,
   );
 
   // 3. POST-EXECUTION CHECK
@@ -187,8 +191,11 @@ async function handleAnalysis(bookId, chapterId) {
 
   const book = await getBook(bookId);
   const bookType = book?.bookType || "nonfiction";
+  const sourceType = book?.sourceType || null; // YouTube, blog, or null
 
-  console.log(`[Worker] Generating Analysis for ${chapterId} (${bookType})`);
+  console.log(
+    `[Worker] Generating Analysis for ${chapterId} (${bookType}, source: ${sourceType || "default"})`,
+  );
   await updateChapter(chapterId, { analysisStatus: "processing" });
   rabbitmq.publishEvent({
     type: "stageStatus",
@@ -201,6 +208,7 @@ async function handleAnalysis(bookId, chapterId) {
   const summaryJSON = await aiService.generateStructuredSummary(
     chapter.rawText,
     bookType,
+    sourceType,
   );
 
   if (await isCancelled(bookId, chapterId)) return;
@@ -411,7 +419,7 @@ async function handleBookAnalysis(bookId, payload) {
   console.log(
     `[Worker] generating overall book analysis for ${bookId} (${
       book.bookType || "nonfiction"
-    })`,
+    }, source: ${book.sourceType || "default"})`,
   );
 
   rabbitmq.publishEvent({
@@ -424,6 +432,7 @@ async function handleBookAnalysis(bookId, payload) {
     const analysisJSON = await aiService.generateOverallAnalysis(
       allSummaries,
       book.bookType || "nonfiction",
+      book.sourceType || null,
     );
 
     if (await isCancelled(bookId)) return;

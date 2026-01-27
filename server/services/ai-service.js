@@ -33,15 +33,57 @@ async function generateChapterOverview(
   chapterText,
   bookType = "nonfiction",
   onToken,
+  sourceType = null,
 ) {
   const isFiction = bookType === "fiction";
+
+  // YouTube-specific prompt
+  const youtubePrompt = `
+    You are an expert content analyst specializing in video content.
+    
+    TASK:
+    Provide a comprehensive overview of the following YouTube video transcript.
+    Include:
+    1. **Video Summary**: What is this video about? What's the main topic or purpose?
+    2. **Key Points**: What are the most important points or insights the presenter shares?
+    3. **Speaker Style**: How does the presenter communicate? What's their approach or teaching style?
+    4. **Actionable Takeaways**: What can viewers learn or do after watching this video?
+    5. **Notable Moments**: Highlight any particularly impactful quotes, demonstrations, or examples.
+    
+    Write in an engaging style suitable for video content summaries. Format nicely in Markdown.
+    
+    VIDEO TRANSCRIPT:
+    "${chapterText.substring(0, 10000)}"
+    `;
+
+  // Blog/Article-specific prompt
+  const blogPrompt = `
+    You are an expert content analyst specializing in written articles and blog posts.
+    
+    TASK:
+    Provide a comprehensive overview of the following article or blog post.
+    Include:
+    1. **Article Summary**: What is the main topic and thesis of this article?
+    2. **Key Arguments**: What are the author's main points or arguments?
+    3. **Evidence & Sources**: What evidence, data, or references does the author cite?
+    4. **Author's Perspective**: What stance or viewpoint does the author take?
+    5. **Reader Takeaways**: What should readers remember or act on after reading?
+    
+    Write in a clear, analytical style. Format nicely in Markdown.
+    
+    ARTICLE TEXT:
+    "${chapterText.substring(0, 10000)}"
+    `;
 
   const fictionPrompt = `
     You are an expert literary analyst and storyteller.
     
     TASK:
     Provide a rich, engaging overview of the following chapter from a fiction book.
-    Include:
+    
+    Start with a **Detailed Chapter Summary** - a flowing, narrative paragraph that captures the essence of what happens in this chapter. This should read like a compelling synopsis that gives the reader a complete understanding of the chapter's content.
+    
+    Then, include the following structured breakdown:
     1. **Plot Summary**: What happens in this chapter? Describe the key events and narrative progression.
     2. **Character Focus**: Which characters appear? What are their motivations, conflicts, or development in this chapter?
     3. **Setting & Atmosphere**: Describe the setting and emotional tone. What mood does the author create?
@@ -59,7 +101,10 @@ async function generateChapterOverview(
     
     TASK:
     Provide a comprehensive, actionable overview of the following chapter from a non-fiction book.
-    Include:
+    
+    Start with a **Detailed Chapter Summary** - a clear, informative paragraph that captures the central message and key content of this chapter. This should give the reader a complete understanding of what the chapter covers and why it matters.
+    
+    Then, include the following structured breakdown:
     1. **Core Argument**: What is the main point or thesis of this chapter?
     2. **Key Insights**: What are the most important ideas, concepts, or findings presented?
     3. **Evidence & Examples**: What evidence, case studies, or examples does the author use to support their points?
@@ -72,7 +117,15 @@ async function generateChapterOverview(
     "${chapterText.substring(0, 10000)}"
     `;
 
-  const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
+  // Select prompt based on sourceType first, then bookType
+  let prompt;
+  if (sourceType === "youtube") {
+    prompt = youtubePrompt;
+  } else if (sourceType === "blog") {
+    prompt = blogPrompt;
+  } else {
+    prompt = isFiction ? fictionPrompt : nonfictionPrompt;
+  }
 
   try {
     const response = await ollama.chat({
@@ -96,8 +149,78 @@ async function generateChapterOverview(
   }
 }
 
-async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
+async function generateStructuredSummary(
+  chapterText,
+  bookType = "nonfiction",
+  sourceType = null,
+) {
   const isFiction = bookType === "fiction";
+
+  // YouTube-specific prompt
+  const youtubePrompt = `
+    You are an expert content analyst specializing in video content.
+
+    TASK:
+    Summarize the following YouTube video transcript into a structured JSON object.
+
+    INTERPRETATION GUIDE (video content meaning):
+    - "mainIdea": The central topic, message, or purpose of this video.
+    - "keyConcepts": Key topics, techniques, or skills covered in the video.
+    - "examples": Demonstrations, case studies, or examples shown by the presenter.
+    - "mentalModels": Frameworks, methodologies, or approaches taught in the video.
+    - "lifeLessons": Practical tips, advice, or actionable steps for viewers.
+
+    RULES:
+    - Do NOT add information not present in the transcript.
+    - Be concise and meaningful.
+    - If a section is not applicable, return an empty array.
+    - Output ONLY valid JSON.
+
+    JSON FORMAT:
+    {
+      "mainIdea": "String",
+      "keyConcepts": ["String"],
+      "examples": ["String"],
+      "mentalModels": ["String"],
+      "lifeLessons": ["String"]
+    }
+
+    VIDEO TRANSCRIPT:
+    "${chapterText.substring(0, 15000)}" 
+    `;
+
+  // Blog/Article-specific prompt
+  const blogPrompt = `
+    You are an expert content analyst specializing in written articles and blog posts.
+
+    TASK:
+    Summarize the following article or blog post into a structured JSON object.
+
+    INTERPRETATION GUIDE (article content meaning):
+    - "mainIdea": The central thesis, argument, or main point of this article.
+    - "keyConcepts": Key ideas, concepts, or themes explored in the article.
+    - "examples": Data, research, case studies, or real-world examples cited.
+    - "mentalModels": Frameworks, perspectives, or analytical approaches presented.
+    - "lifeLessons": Practical advice, recommendations, or conclusions for readers.
+
+    RULES:
+    - Do NOT add information not present in the text.
+    - Be concise and meaningful.
+    - If a section is not applicable, return an empty array.
+    - Output ONLY valid JSON.
+
+    JSON FORMAT:
+    {
+      "mainIdea": "String",
+      "keyConcepts": ["String"],
+      "examples": ["String"],
+      "mentalModels": ["String"],
+      "lifeLessons": ["String"]
+    }
+
+    ARTICLE TEXT:
+    "${chapterText.substring(0, 15000)}" 
+    `;
 
   const fictionPrompt = `
     You are an expert literary analyst helping readers understand fiction deeply.
@@ -163,7 +286,15 @@ async function generateStructuredSummary(chapterText, bookType = "nonfiction") {
     "${chapterText.substring(0, 15000)}" 
     `;
 
-  const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
+  // Select prompt based on sourceType first, then bookType
+  let prompt;
+  if (sourceType === "youtube") {
+    prompt = youtubePrompt;
+  } else if (sourceType === "blog") {
+    prompt = blogPrompt;
+  } else {
+    prompt = isFiction ? fictionPrompt : nonfictionPrompt;
+  }
   console.log(
     "[AI Service] Generating structured summary (with retry capability)...",
   );
@@ -326,9 +457,73 @@ async function generateAtomicNotes(chapterSummaryJSON) {
   }
 }
 
-async function generateOverallAnalysis(allSummaries, bookType = "nonfiction") {
+async function generateOverallAnalysis(
+  allSummaries,
+  bookType = "nonfiction",
+  sourceType = null,
+) {
   const combinedText = allSummaries.map((s) => JSON.stringify(s)).join("\n\n");
   const isFiction = bookType === "fiction";
+
+  // YouTube-specific prompt
+  const youtubePrompt = `
+    You are an expert content synthesizer analyzing a complete YouTube video or video series.
+
+    TASK:
+    Generate an overall analysis from the video segment summaries.
+
+    FOCUS ON:
+    - **Core Topics**: What are the main topics or themes covered across the video?
+    - **Key Takeaways**: What are the most valuable insights for viewers?
+    - **Skills & Techniques**: What skills, methods, or techniques are taught?
+    - **Practical Applications**: How can viewers apply what they learned?
+
+    RULES:
+    - Synthesize across segments, don't just list them.
+    - Focus on actionable value for viewers.
+    - Output ONLY valid JSON.
+
+    JSON FORMAT:
+    {
+      "coreThemes": ["String"],
+      "keyTakeaways": ["String"],
+      "mentalModels": ["String"],
+      "practicalApplications": ["String"]
+    }
+
+    VIDEO SUMMARIES:
+    ${combinedText.substring(0, 20000)}
+    `;
+
+  // Blog/Article-specific prompt
+  const blogPrompt = `
+    You are an expert content synthesizer analyzing a complete article or blog post series.
+
+    TASK:
+    Generate an overall analysis from the article section summaries.
+
+    FOCUS ON:
+    - **Core Arguments**: What are the main arguments or theses presented?
+    - **Key Insights**: What are the most important points for readers?
+    - **Frameworks & Perspectives**: What analytical frameworks or viewpoints are introduced?
+    - **Reader Actions**: What should readers do or think differently after reading?
+
+    RULES:
+    - Synthesize across sections, don't just list them.
+    - Capture the author's overall message and perspective.
+    - Output ONLY valid JSON.
+
+    JSON FORMAT:
+    {
+      "coreThemes": ["String"],
+      "keyTakeaways": ["String"],
+      "mentalModels": ["String"],
+      "practicalApplications": ["String"]
+    }
+
+    ARTICLE SUMMARIES:
+    ${combinedText.substring(0, 20000)}
+    `;
 
   const fictionPrompt = `
     You are a literary critic synthesizing insights from a complete fiction book.
@@ -394,7 +589,15 @@ async function generateOverallAnalysis(allSummaries, bookType = "nonfiction") {
     ${combinedText.substring(0, 20000)}
     `;
 
-  const prompt = isFiction ? fictionPrompt : nonfictionPrompt;
+  // Select prompt based on sourceType first, then bookType
+  let prompt;
+  if (sourceType === "youtube") {
+    prompt = youtubePrompt;
+  } else if (sourceType === "blog") {
+    prompt = blogPrompt;
+  } else {
+    prompt = isFiction ? fictionPrompt : nonfictionPrompt;
+  }
 
   try {
     const response = await ollama.chat({
