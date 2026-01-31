@@ -453,7 +453,18 @@ async function handleBookAnalysis(bookId, payload) {
     console.log(`[Worker] Book Analysis Complete: ${bookId}`);
   } catch (err) {
     console.error("Book Analysis Failed", err);
-    // Don't fail the whole book?
+
+    // Update book status to failed
+    book.status = "analysis_failed";
+    book.analysisError = err.message;
+    await saveBook(book);
+
+    // Publish error event for UI
+    rabbitmq.publishEvent({
+      type: "bookAnalysisError",
+      bookId,
+      message: err.message,
+    });
   }
 }
 

@@ -6,6 +6,7 @@ import { toast } from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
 import NoteCard from "./NoteCard";
 import Loading from "./layout/Loading";
+import "../styles/dashboard.css";
 
 const BookDashboard = ({ bookId, onDelete, onBack }) => {
   const [book, setBook] = useState(null);
@@ -302,6 +303,16 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
     }
   };
 
+  const handleSkipAnalysis = async () => {
+    try {
+      await api.post(`/books/${bookId}/skip-analysis`);
+      toast.success("Book analysis skipped");
+      fetchBook();
+    } catch (err) {
+      toast.error("Failed to skip analysis");
+    }
+  };
+
   const handleListen = async () => {
     if (!selectedChapterId) return;
 
@@ -457,14 +468,12 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
             {status === "failed" ? "Retry" : label}
           </button>
 
-          {status !== "failed" && (
-            <button
-              onClick={() => handleSkip(apiEndpointStep)}
-              className="btn-ghost"
-            >
-              Skip
-            </button>
-          )}
+          <button
+            onClick={() => handleSkip(apiEndpointStep)}
+            className="btn-ghost"
+          >
+            Skip
+          </button>
         </div>
       </div>
     );
@@ -499,8 +508,8 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
 
       {/* Header Card */}
       <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <div>
+        <div className="book-header-wrapper">
+          <div className="book-header-left">
             {/* Title Editing Logic */}
             {isEditingTitle ? (
               <div
@@ -550,13 +559,16 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                   alignItems: "center",
                   gap: "10px",
                   minWidth: 0,
+                  flex: 1,
+                  overflow: "hidden",
                 }}
               >
                 <h1
-                  className="truncate"
+                  className="truncate book-title"
                   style={{
                     fontSize: "2rem",
                     maxWidth: "100%",
+                    minWidth: 0,
                   }}
                   title={book.title}
                 >
@@ -747,7 +759,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
               })()}
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
+          <div className="book-header-right">
             {statusMsg && (
               <div
                 style={{
@@ -758,7 +770,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                 ⚡ {statusMsg}
               </div>
             )}
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div className="book-header-actions">
               <button
                 onClick={handleRegenerateBook}
                 className="btn-ghost"
@@ -1150,6 +1162,66 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
               </ul>
             </div>
           </div>
+        ) : book.analysisSkipped ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              border: "1px dashed var(--border-color)",
+              borderRadius: "8px",
+              background: "rgba(107, 114, 128, 0.05)",
+            }}
+          >
+            <p style={{ marginBottom: "1rem", opacity: 0.7 }}>
+              You skipped book analysis.
+            </p>
+            <button onClick={handleRegenerateAnalysis} className="btn-primary">
+              Generate Book Analysis
+            </button>
+          </div>
+        ) : book.status === "analysis_failed" ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "2rem",
+              border: "1px dashed var(--border-color)",
+              borderRadius: "8px",
+            }}
+          >
+            <p
+              style={{
+                marginBottom: "0.5rem",
+                opacity: 0.7,
+                color: "var(--error)",
+              }}
+            >
+              ❌ Book analysis generation failed.
+            </p>
+            {book.analysisError && (
+              <p
+                style={{
+                  marginBottom: "1rem",
+                  fontSize: "0.9rem",
+                  opacity: 0.6,
+                }}
+              >
+                Error: {book.analysisError}
+              </p>
+            )}
+            <div
+              style={{ display: "flex", gap: "10px", justifyContent: "center" }}
+            >
+              <button
+                onClick={handleRegenerateAnalysis}
+                className="btn-primary"
+              >
+                Retry
+              </button>
+              <button onClick={handleSkipAnalysis} className="btn-ghost">
+                Skip
+              </button>
+            </div>
+          </div>
         ) : (
           <div
             style={{
@@ -1162,12 +1234,19 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
             <p style={{ marginBottom: "1rem", opacity: 0.7 }}>
               Overall book analysis not generated yet.
             </p>
-            <button
-              onClick={handleRegenerateAnalysis}
-              style={{ background: "var(--primary-color)" }}
+            <div
+              style={{ display: "flex", gap: "10px", justifyContent: "center" }}
             >
-              Generate Book Analysis
-            </button>
+              <button
+                onClick={handleRegenerateAnalysis}
+                className="btn-primary"
+              >
+                Generate Book Analysis
+              </button>
+              <button onClick={handleSkipAnalysis} className="btn-ghost">
+                Skip
+              </button>
+            </div>
           </div>
         )}
       </div>

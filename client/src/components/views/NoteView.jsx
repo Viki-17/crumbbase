@@ -27,10 +27,15 @@ const NoteView = ({ noteId, onNoteUpdated, onBack }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [suggesting, setSuggesting] = useState(false);
 
+  const [sourceBook, setSourceBook] = useState(null);
+  const [sourceChapter, setSourceChapter] = useState(null);
+
   React.useEffect(() => {
     if (noteId) {
       fetchNote();
       setSuggestions([]); // Clear suggestions on note change
+      setSourceBook(null); // Reset source info
+      setSourceChapter(null);
     }
   }, [noteId]);
 
@@ -43,11 +48,37 @@ const NoteView = ({ noteId, onNoteUpdated, onBack }) => {
         setEditedTitle(res.data.title);
         setEditedContent(res.data.content);
         setEditedTags(res.data.tags?.join(", ") || "");
+
+        // Fetch source details if available
+        if (res.data.source?.bookId) {
+          fetchSourceDetails(res.data.source.bookId, res.data.source.chapterId);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch note:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSourceDetails = async (bookId, chapterId) => {
+    try {
+      console.log(`Fetching book details for: ${bookId}`);
+      const res = await api.get(`/books/${bookId}`);
+      console.log("Book details response:", res.data);
+      if (res.data) {
+        setSourceBook(res.data);
+        if (chapterId && res.data.chapters) {
+          // The book endpoints returns hydrated chapters now?
+          // /books/:id returns object with chapters array of objects (if hydrated) or IDs?
+          // Checking server: /books/:id returns chapters: [{...}, ...] (hydrated)
+          const foundChap = res.data.chapters.find((c) => c.id === chapterId);
+          console.log("Found chapter:", foundChap);
+          setSourceChapter(foundChap);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch source book", err);
     }
   };
 
@@ -185,7 +216,14 @@ const NoteView = ({ noteId, onNoteUpdated, onBack }) => {
               <span>
                 From:{" "}
                 <span className="note-view-source-link">
-                  {note.source.bookId} / Ch.{note.source.chapterId}
+                  From:{" "}
+                  <span className="note-view-source-link">
+                    {sourceBook ? sourceBook.title : "Unknown Book"} /{" "}
+                    {sourceChapter
+                      ? sourceChapter.title ||
+                        `Ch. ${sourceChapter.chapterIndex}`
+                      : "Unknown Chapter"}
+                  </span>
                 </span>
               </span>
             )}

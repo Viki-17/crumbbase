@@ -131,6 +131,11 @@ router.get("/books/:id", async (req, res) => {
 
     const analysis = await storage.getAnalysis(book.id);
 
+    // Debugging: Check why title is missing
+    console.log(
+      `[API] Serving Book ${book.id} - Title: ${book.title}, Has Chapters: ${chapters.length}`,
+    );
+
     res.json({
       ...book,
       chapters,
@@ -300,6 +305,24 @@ router.post("/books/:id/regenerate-analysis", async (req, res) => {
     });
 
     res.json({ message: "Analysis regeneration started" });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Skip Book Analysis
+router.post("/books/:id/skip-analysis", async (req, res) => {
+  try {
+    const bookId = req.params.id;
+    const book = await storage.getBook(bookId);
+    if (!book) return res.status(404).json({ error: "Book not found" });
+
+    // Mark analysis as skipped
+    book.analysisSkipped = true;
+    book.status = "done"; // Mark book as done even without analysis
+    await storage.saveBook(book);
+
+    res.json({ message: "Book analysis skipped" });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

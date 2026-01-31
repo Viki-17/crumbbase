@@ -6,7 +6,7 @@ import "./../../styles/context-panel.css";
 /**
  * ContextPanel - Right panel for note context
  */
-const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
+const ContextPanel = ({ selectedNote, selectedBook, onClose, onNavigate }) => {
   const [links, setLinks] = useState({ outgoingLinks: [], backlinks: [] });
   const [suggestions, setSuggestions] = useState([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
@@ -64,30 +64,6 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
     }
   };
 
-  // Helper to resolve title (assuming we might need to fetch note titles if not provided)
-  // For now, assuming API returns lightweight structure or we need to look it up.
-  // The current storage.js getNoteLinks returns { to, reason ... } but 'to' is just ID.
-  // Ideally, storage.js should populate titles.
-  // Let's assume we need to fetch titles or the backend is updated.
-  // Checking storage.js: getNoteLinks just returns IDs. This is a gap.
-  // I will add a small inline fetch for titles or update backend.
-  // For robustness, I'll assume we need to fetch note details for ID.
-  // Optimization: In a real app, `getNoteLinks` should populate.
-  // I will display ID for now or try to match if I had allNotes passed down.
-  // Actually, let's use a "NoteLinkItem" component that fetches its own title if missing?
-  // Or better, assume we can pass `allNotes` or the backend populates it.
-  // I'll update the display to generic "Note" if title missing, but ideally we fix backend.
-
-  // WAIT: I can just update the frontend to do a quick lookup if I had a cache.
-  // But strictly I should ask Backend to populate.
-  // Let's assume for this step I'll display the ID or a placeholder,
-  // AND I'll ask to update backend in next step for better UX.
-
-  // Correction: `NoteView` had `allNotes` available or fetched them.
-  // `Sidebar` fetches all notes. `App` doesn't pass allNotes to Layout.
-  // I will assume for now we might see IDs or I should update backend.
-  // Let's stick to UI structure first.
-
   return (
     <div className="context-panel">
       <div className="context-panel-header">
@@ -106,7 +82,16 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
           </div>
         ) : (
           <div className="context-section-container">
-            <h3 style={{ fontSize: "1rem", marginBottom: "0.5rem" }}>
+            <h3
+              style={{
+                fontSize: "1rem",
+                marginBottom: "0.5rem",
+                cursor: "pointer",
+                color: "var(--primary)",
+              }}
+              onClick={() => onNavigate && onNavigate("note", selectedNote.id)}
+              title="Open full note view"
+            >
               {selectedNote.title}
             </h3>
 
@@ -157,9 +142,34 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
                     <div className="empty-links">No backlinks</div>
                   )}
                   {links.backlinks.map((l, i) => (
-                    <div key={i} className="link-item">
-                      <ArrowLeft size={12} />
-                      <span>{l.from}</span> {/* TODO: Resolve Title */}
+                    <div
+                      key={i}
+                      className="link-item clickable"
+                      onClick={() => onNavigate && onNavigate("note", l.from)}
+                      title="Click to view note"
+                      style={{
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "6px",
+                        borderRadius: "4px",
+                      }}
+                      onMouseOver={(e) =>
+                        (e.currentTarget.style.background =
+                          "var(--bg-surface-2)")
+                      }
+                      onMouseOut={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      <ArrowLeft
+                        size={14}
+                        style={{ flexShrink: 0, opacity: 0.7 }}
+                      />
+                      <span style={{ fontSize: "0.9rem" }}>
+                        {l.title || "Unknown Note"}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -177,9 +187,34 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose }) => {
                     <div className="empty-links">No outgoing links</div>
                   )}
                   {links.outgoingLinks.map((l, i) => (
-                    <div key={i} className="link-item">
-                      <ArrowRight size={12} />
-                      <span>{l.to}</span> {/* TODO: Resolve Title */}
+                    <div
+                      key={i}
+                      className="link-item clickable"
+                      onClick={() => onNavigate && onNavigate("note", l.to)}
+                      title="Click to view note"
+                      style={{
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        padding: "6px",
+                        borderRadius: "4px",
+                      }}
+                      onMouseOver={(e) =>
+                        (e.currentTarget.style.background =
+                          "var(--bg-surface-2)")
+                      }
+                      onMouseOut={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
+                    >
+                      <ArrowRight
+                        size={14}
+                        style={{ flexShrink: 0, opacity: 0.7 }}
+                      />
+                      <span style={{ fontSize: "0.9rem" }}>
+                        {l.title || "Unknown Note"}
+                      </span>
                     </div>
                   ))}
                 </div>

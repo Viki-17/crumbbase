@@ -214,7 +214,7 @@ const deleteNotesByChapter = async (bookId, chapterId) => {
     delete graph.nodes[id];
   });
   graph.edges = graph.edges.filter(
-    (e) => !noteIds.includes(e.from) && !noteIds.includes(e.to)
+    (e) => !noteIds.includes(e.from) && !noteIds.includes(e.to),
   );
   await saveGraph(graph);
 };
@@ -292,7 +292,7 @@ const addEdge = async (edge) => {
       (e.from === edge.from && e.to === edge.to) ||
       (e.from === edge.to &&
         e.to === edge.from &&
-        edge.direction === "bidirectional")
+        edge.direction === "bidirectional"),
   );
   if (!exists) {
     graph.edges.push(edge);
@@ -308,7 +308,7 @@ const removeEdge = async (fromId, toId) => {
       !(
         (e.from === fromId && e.to === toId) ||
         (e.from === toId && e.to === fromId)
-      )
+      ),
   );
   await saveGraph(graph);
 };
@@ -318,25 +318,47 @@ const getEdgesForNote = async (noteId) => {
   return graph.edges.filter((e) => e.from === noteId || e.to === noteId);
 };
 
+// Helper to get title, fetching from DB if needed
+const resolveTitle = async (id, graph) => {
+  if (graph.nodes[id] && graph.nodes[id].title) {
+    return graph.nodes[id].title;
+  }
+  // Fallback to DB
+  try {
+    const Note = require("../models").Note; // Lazy load to avoid circular dep issues if any
+    const note = await Note.findOne({ id }).select("title").lean();
+    return note ? note.title : "Unknown Note";
+  } catch (e) {
+    console.error(`[getNoteLinks] Failed to resolve title for ${id}`, e);
+    return "Unknown Note";
+  }
+};
+
 const getNoteLinks = async (noteId) => {
   const graph = await getGraph();
-  const outgoing = graph.edges
+
+  const outgoingPromises = graph.edges
     .filter((e) => e.from === noteId)
-    .map((e) => ({
+    .map(async (e) => ({
       to: e.to,
+      title: await resolveTitle(e.to, graph),
       reason: e.reason,
       createdBy: e.createdBy,
       confidence: e.confidence,
     }));
 
-  const backlinks = graph.edges
+  const backlinkPromises = graph.edges
     .filter((e) => e.to === noteId)
-    .map((e) => ({
+    .map(async (e) => ({
       from: e.from,
+      title: await resolveTitle(e.from, graph),
       reason: e.reason,
       createdBy: e.createdBy,
       confidence: e.confidence,
     }));
+
+  const outgoing = await Promise.all(outgoingPromises);
+  const backlinks = await Promise.all(backlinkPromises);
 
   return { outgoingLinks: outgoing, backlinks: backlinks };
 };
@@ -353,7 +375,7 @@ const saveFolders = async (folders) => {
   await Folder.findOneAndUpdate(
     { id: "folder-metadata" },
     { id: "folder-metadata", folders, updatedAt: new Date() },
-    { upsert: true }
+    { upsert: true },
   );
 };
 

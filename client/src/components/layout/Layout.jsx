@@ -71,6 +71,7 @@ const Layout = ({
           selectedNote={selectedNote}
           selectedBook={selectedBook}
           onClose={() => setContextPanelVisible(false)}
+          onNavigate={onSelectView}
         />
       ) : (
         <button
