@@ -382,9 +382,9 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
     // Status can be: pending, processing, completed, skipped, failed
     // (plus undefined for old records -> treat as pending)
 
-    const statusKey = step === "summary" ? "analysisStatus" : `${step}Status`;
+    const statusKey = `${step}Status`;
     const status = selectedChapter?.[statusKey] || "pending";
-    const apiEndpointStep = step === "summary" ? "analysis" : step;
+    const apiEndpointStep = step;
 
     // Check if this specific chapter AND step is loading locally
     const isLocallyLoading =
@@ -713,13 +713,10 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                   const overviewDone =
                     chap.overviewStatus === "completed" ||
                     chap.overviewStatus === "skipped";
-                  const analysisDone =
-                    chap.analysisStatus === "completed" ||
-                    chap.analysisStatus === "skipped";
                   const notesDone =
                     chap.notesStatus === "completed" ||
                     chap.notesStatus === "skipped";
-                  return overviewDone && analysisDone && notesDone;
+                  return overviewDone && notesDone;
                 });
 
                 const effectiveStatus =
@@ -812,7 +809,6 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
               badgeBg = "rgba(239, 68, 68, 0.2)";
             } else if (
               chap.overviewStatus === "processing" ||
-              chap.analysisStatus === "processing" ||
               chap.notesStatus === "processing" ||
               chap.status === "summarization" || // legacy fallback
               chap.status === "atomic_notes"
@@ -823,7 +819,6 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
             } else if (
               // If all marked skipped
               chap.overviewStatus === "skipped" &&
-              chap.analysisStatus === "skipped" &&
               chap.notesStatus === "skipped"
             ) {
               badgeText = "Skipped";
@@ -833,8 +828,6 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
               // but main status might not have updated yet
               (chap.overviewStatus === "completed" ||
                 chap.overviewStatus === "skipped") &&
-              (chap.analysisStatus === "completed" ||
-                chap.analysisStatus === "skipped") &&
               (chap.notesStatus === "completed" ||
                 chap.notesStatus === "skipped")
             ) {
@@ -891,15 +884,6 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                   onClick={() => setActiveTab("overview")}
                 >
                   📖 Overview {getTabStatusIcon(selectedChapter.overviewStatus)}
-                </button>
-                <button
-                  className={`tab-btn ${
-                    activeTab === "summary" ? "active" : ""
-                  }`}
-                  onClick={() => setActiveTab("summary")}
-                >
-                  🎯 Structured Analysis{" "}
-                  {getTabStatusIcon(selectedChapter.analysisStatus)}
                 </button>
                 <button
                   className={`tab-btn ${activeTab === "notes" ? "active" : ""}`}
@@ -970,76 +954,6 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                 </div>
               )}
 
-              {/* STRUCTURED SUMMARY TAB */}
-              {activeTab === "summary" &&
-                (summary?.mainIdea &&
-                selectedChapter.analysisStatus !== "skipped" ? (
-                  <div className="markdown-content">
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "flex-end",
-                        marginBottom: "1rem",
-                      }}
-                    >
-                      <button
-                        onClick={() => handleGenerate("analysis")}
-                        style={{
-                          background: "#f59e0b",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
-                        }}
-                      >
-                        🔄 Regenerate
-                      </button>
-                    </div>
-                    <h3>🎯 Main Idea</h3>
-                    <p>{summary.mainIdea}</p>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr 1fr",
-                        gap: "1rem",
-                        marginTop: "1rem",
-                      }}
-                    >
-                      <div>
-                        <h4>🔑 Key Concepts</h4>
-                        <ul>
-                          {summary.keyConcepts?.map((k, i) => (
-                            <li key={i}>{k}</li>
-                          ))}
-                        </ul>
-                      </div>
-                      <div>
-                        <h4>🧠 Mental Models</h4>
-                        <ul>
-                          {summary.mentalModels?.map((m, i) => (
-                            <li key={i}>{m}</li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
-
-                    <h4 style={{ marginTop: "1rem" }}>💡 Examples</h4>
-                    <ul>
-                      {summary.examples?.map((e, i) => (
-                        <li key={i}>{e}</li>
-                      ))}
-                    </ul>
-
-                    <h4>🌱 Life Lessons</h4>
-                    <ul>
-                      {summary.lifeLessons?.map((l, i) => (
-                        <li key={i}>{l}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  renderGenerateButton("summary", "Generate Data")
-                ))}
 
               {/* ATOMIC NOTES TAB */}
               {activeTab === "notes" && (

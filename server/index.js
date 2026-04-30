@@ -80,13 +80,10 @@ router.get("/books", async (req, res) => {
             const overviewDone =
               chap.overviewStatus === "completed" ||
               chap.overviewStatus === "skipped";
-            const analysisDone =
-              chap.analysisStatus === "completed" ||
-              chap.analysisStatus === "skipped";
             const notesDone =
               chap.notesStatus === "completed" ||
               chap.notesStatus === "skipped";
-            return overviewDone && analysisDone && notesDone;
+            return overviewDone && notesDone;
           });
 
           if (allChaptersDone) {
@@ -261,7 +258,6 @@ router.post("/books/:id/regenerate", async (req, res) => {
       await storage.updateChapter(chapId, {
         summaryId: null,
         overviewStatus: "pending",
-        analysisStatus: "pending",
         notesStatus: "pending",
         status: "pending",
       });
@@ -375,7 +371,7 @@ router.post("/chapters/:id/skip/:stage", async (req, res) => {
     const chapter = await storage.getChapter(id);
     if (!chapter) return res.status(404).json({ error: "Chapter not found" });
 
-    if (!["overview", "analysis", "notes"].includes(stage)) {
+    if (!["overview", "notes"].includes(stage)) {
       return res.status(400).json({ error: "Invalid stage" });
     }
 
@@ -415,26 +411,6 @@ router.post("/chapters/:id/overview", async (req, res) => {
   }
 });
 
-router.post("/chapters/:id/analysis", async (req, res) => {
-  try {
-    const chapterId = req.params.id;
-    const chapter = await storage.getChapter(chapterId);
-    if (!chapter) return res.status(404).json({ error: "Chapter not found" });
-
-    // Publish Job
-    await rabbitmq.publishJob({
-      type: "analysis",
-      bookId: chapter.bookId,
-      chapterId,
-      stage: "analysis",
-    });
-
-    await updateChapterStageStatus(chapterId, "analysis", "processing");
-    res.json({ message: "Analysis generation started" });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
 
 router.post("/chapters/:id/notes", async (req, res) => {
   try {
@@ -885,7 +861,6 @@ async function processBookWithChunks(bookId, textChunks) {
         lastStep: "extraction",
         // Default granular statuses
         overviewStatus: "pending",
-        analysisStatus: "pending",
         notesStatus: "pending",
       };
       await storage.saveChapter(chapter);
@@ -983,16 +958,6 @@ async function runChapterPipeline(bookId, chapterId) {
       bookId,
       chapterId,
       stage: "overview",
-    });
-  } else if (
-    chapter.analysisStatus !== "completed" &&
-    chapter.analysisStatus !== "skipped"
-  ) {
-    await rabbitmq.publishJob({
-      type: "analysis",
-      bookId,
-      chapterId,
-      stage: "analysis",
     });
   } else if (
     chapter.notesStatus !== "completed" &&

@@ -1,5 +1,74 @@
 const ollama = require("./ollama-client");
 
+let openrouterInstance;
+async function getOpenRouter() {
+  if (!openrouterInstance) {
+    const { OpenRouter } = await import("@openrouter/sdk");
+    openrouterInstance = new OpenRouter({
+      apiKey: process.env.OPENROUTER_API_KEY,
+    });
+  }
+  return openrouterInstance;
+}
+
+// Reusable function for streaming AI generation with OpenRouter -> Ollama fallback
+async function generateStreamWithFallback(prompt, onToken) {
+  try {
+    console.log("[AI Service] Attempting generation with OpenRouter...");
+    const openrouter = await getOpenRouter();
+    const stream = await openrouter.chat.send({
+      chatRequest: {
+        model: "openai/gpt-oss-20b:free",
+        messages: [{ role: "user", content: prompt }],
+        stream: true,
+      },
+    });
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        fullContent += content;
+        if (onToken) {
+          onToken(content);
+        }
+      }
+
+      if (chunk.usage) {
+        console.log("[AI Service] OpenRouter Reasoning tokens:", chunk.usage);
+      }
+    }
+
+    if (!fullContent) {
+      throw new Error("OpenRouter returned empty response");
+    }
+
+    return fullContent;
+  } catch (error) {
+    console.warn(
+      "[AI Service] OpenRouter generation failed, falling back to Ollama:",
+      error.message,
+    );
+
+    // Fallback to Ollama
+    const response = await ollama.chat({
+      model: "gemma3:4b",
+      messages: [{ role: "user", content: prompt }],
+      stream: true,
+    });
+
+    let fullContent = "";
+    for await (const part of response) {
+      const token = part.message.content;
+      fullContent += token;
+      if (onToken) {
+        onToken(token);
+      }
+    }
+    return fullContent;
+  }
+}
+
 // Helper to extract JSON from markdown code block
 function parseJSON(text) {
   try {
@@ -39,18 +108,21 @@ async function generateChapterOverview(
 
   // YouTube-specific prompt
   const youtubePrompt = `
-    You are an expert content analyst specializing in video content.
+    You are an expert content analyst and deep-learning comprehension specialist specializing in video content.
     
     TASK:
-    Provide a comprehensive overview of the following YouTube video transcript.
-    Include:
-    1. **Video Summary**: What is this video about? What's the main topic or purpose?
-    2. **Key Points**: What are the most important points or insights the presenter shares?
-    3. **Speaker Style**: How does the presenter communicate? What's their approach or teaching style?
-    4. **Actionable Takeaways**: What can viewers learn or do after watching this video?
-    5. **Notable Moments**: Highlight any particularly impactful quotes, demonstrations, or examples.
+    Provide a highly detailed, comprehensive, and actionable overview of the following YouTube video transcript. Do NOT provide shallow, surface-level bullet points. Your goal is to extract maximum value for the reader by explaining concepts, analogies, examples, and arguments in profound detail.
     
-    Write in an engaging style suitable for video content summaries. Format nicely in Markdown.
+    Start with a **Comprehensive Video Summary** - a deep, informative narrative that captures the central message, the nuances of the video's arguments, and the key narrative flow. This should give the reader a complete, rich understanding of what the video covers, avoiding generic summaries.
+    
+    Then, include the following structured breakdown. For each section, go into EXTREME detail, providing context, explaining the mechanics of the concepts, and breaking down complex ideas so the reader fully understands them without watching the video:
+    
+    1. **Deep Dive into Key Concepts & Arguments**: Detail the most important points, concepts, or arguments presented. Do not just list them; explain the mechanics of each concept (e.g., if a specific term or practice is mentioned, explain exactly what it is, how it works, and why it matters).
+    2. **Comprehensive Evidence, Examples & Demonstrations**: Thoroughly break down the evidence, case studies, or examples used in the video. You MUST explain these examples fully to illustrate the key concepts clearly.
+    3. **Actionable & Specific Takeaways**: What can viewers learn or do after watching this video? Provide specific, step-by-step actionable advice or concrete behavioral changes the viewer can implement.
+    4. **Critical Quotes & Notable Moments**: Highlight the most impactful quotes, definitive statements, or critical moments from the transcript. Provide the context for why these moments are significant.
+    
+    Prioritize depth, thoroughness, and maximum value extraction over conciseness. Do NOT use Markdown tables; use bullet points, bold text, or standard paragraphs instead. Format nicely in Markdown.
     
     VIDEO TRANSCRIPT:
     "${chapterText.substring(0, 10000)}"
@@ -69,7 +141,7 @@ async function generateChapterOverview(
     4. **Author's Perspective**: What stance or viewpoint does the author take?
     5. **Reader Takeaways**: What should readers remember or act on after reading?
     
-    Write in a clear, analytical style. Format nicely in Markdown.
+    Write in a clear, analytical style. Do NOT use Markdown tables; use bullet points, bold text, or standard paragraphs instead. Format nicely in Markdown.
     
     ARTICLE TEXT:
     "${chapterText.substring(0, 10000)}"
@@ -90,31 +162,32 @@ async function generateChapterOverview(
     4. **Themes & Symbolism**: Identify any themes, motifs, or symbolic elements present.
     5. **Foreshadowing & Tension**: Note any hints about future events or unresolved tensions.
     
-    Write in an engaging, narrative style. Format nicely in Markdown.
+    Write in an engaging, narrative style. Do NOT use Markdown tables; use bullet points, bold text, or standard paragraphs instead. Format nicely in Markdown.
     
     CHAPTER TEXT:
     "${chapterText.substring(0, 10000)}"
     `;
 
   const nonfictionPrompt = `
-    You are an expert analyst and knowledge synthesizer.
+    You are an expert literary analyst, deep-reading comprehension specialist, and knowledge synthesizer.
     
     TASK:
-    Provide a comprehensive, actionable overview of the following chapter from a non-fiction book.
+    Provide a highly detailed, comprehensive, and actionable overview of the following chapter from a non-fiction book. Do NOT provide shallow, surface-level bullet points. Your goal is to extract maximum value for the reader by explaining concepts, analogies, thought experiments, and evidence in profound detail.
     
-    Start with a **Detailed Chapter Summary** - a clear, informative paragraph that captures the central message and key content of this chapter. This should give the reader a complete understanding of what the chapter covers and why it matters.
+    Start with a **Comprehensive Chapter Summary** - a deep, informative narrative that captures the central message, the nuances of the author's argument, and the key narrative flow of this chapter. This should give the reader a complete, rich understanding of what the chapter covers, avoiding generic summaries.
     
-    Then, include the following structured breakdown:
-    1. **Core Argument**: What is the main point or thesis of this chapter?
-    2. **Key Insights**: What are the most important ideas, concepts, or findings presented?
-    3. **Evidence & Examples**: What evidence, case studies, or examples does the author use to support their points?
-    4. **Practical Applications**: How can the reader apply these ideas in real life?
-    5. **Critical Takeaways**: What should the reader remember from this chapter?
+    Then, include the following structured breakdown. For each section, go into EXTREME detail, providing context, explaining the mechanics of the concepts, and breaking down complex ideas:
     
-    Be concise but thorough. Format nicely in Markdown.
+    1. **Core Argument & Philosophical Foundation**: What is the definitive main thesis of this chapter? Explain the underlying logic and foundational premises the author builds upon.
+    2. **Deep Dive into Key Insights**: Detail the most important ideas, concepts, or findings presented. Do not just list them; explain the mechanics of each insight, why it matters, and how it challenges conventional thinking.
+    3. **Comprehensive Evidence, Analogies & Thought Experiments**: Thoroughly break down the evidence, case studies, thought experiments, or analogies used by the author. You MUST explain these examples fully (e.g., if an analogy or specific thought experiment is mentioned, explain exactly what it represents, the context in which it was introduced, and its broader implications).
+    4. **Actionable & Specific Practical Applications**: How can the reader apply these ideas in real life? Provide specific, step-by-step actionable advice, detailed scenarios, or behavioral changes the reader can implement based on the text.
+    5. **Critical Takeaways & Nuances**: What are the most profound lessons to remember? Include the nuances, caveats, and any potential counter-arguments the author addresses.
+    
+    Prioritize depth, thoroughness, and maximum value extraction over conciseness. The reader should feel they have deeply understood the chapter's intricacies without having to read it themselves. Do NOT use Markdown tables; use bullet points, bold text, or standard paragraphs instead. Format nicely in Markdown.
     
     CHAPTER TEXT:
-    "${chapterText.substring(0, 10000)}"
+    "\${chapterText.substring(0, 10000)}"
     `;
 
   // Select prompt based on sourceType first, then bookType
@@ -128,279 +201,42 @@ async function generateChapterOverview(
   }
 
   try {
-    const response = await ollama.chat({
-      model: "gemma3:4b",
-      messages: [{ role: "user", content: prompt }],
-      stream: true,
-    });
-
-    let fullContent = "";
-    for await (const part of response) {
-      const token = part.message.content;
-      fullContent += token;
-      if (onToken) {
-        onToken(token);
-      }
-    }
-    return fullContent;
+    return await generateStreamWithFallback(prompt, onToken);
   } catch (error) {
     console.error("AI Service Error (Overview):", error);
     throw error;
   }
 }
 
-async function generateStructuredSummary(
-  chapterText,
-  bookType = "nonfiction",
-  sourceType = null,
-) {
-  const isFiction = bookType === "fiction";
-
-  // YouTube-specific prompt
-  const youtubePrompt = `
-    You are an expert content analyst specializing in video content.
-
-    TASK:
-    Summarize the following YouTube video transcript into a structured JSON object.
-
-    INTERPRETATION GUIDE (video content meaning):
-    - "mainIdea": The central topic, message, or purpose of this video.
-    - "keyConcepts": Key topics, techniques, or skills covered in the video.
-    - "examples": Demonstrations, case studies, or examples shown by the presenter.
-    - "mentalModels": Frameworks, methodologies, or approaches taught in the video.
-    - "lifeLessons": Practical tips, advice, or actionable steps for viewers.
-
-    RULES:
-    - Do NOT add information not present in the transcript.
-    - Be concise and meaningful.
-    - If a section is not applicable, return an empty array.
-    - Output ONLY valid JSON.
-
-    JSON FORMAT:
-    {
-      "mainIdea": "String",
-      "keyConcepts": ["String"],
-      "examples": ["String"],
-      "mentalModels": ["String"],
-      "lifeLessons": ["String"]
-    }
-
-    VIDEO TRANSCRIPT:
-    "${chapterText.substring(0, 15000)}" 
-    `;
-
-  // Blog/Article-specific prompt
-  const blogPrompt = `
-    You are an expert content analyst specializing in written articles and blog posts.
-
-    TASK:
-    Summarize the following article or blog post into a structured JSON object.
-
-    INTERPRETATION GUIDE (article content meaning):
-    - "mainIdea": The central thesis, argument, or main point of this article.
-    - "keyConcepts": Key ideas, concepts, or themes explored in the article.
-    - "examples": Data, research, case studies, or real-world examples cited.
-    - "mentalModels": Frameworks, perspectives, or analytical approaches presented.
-    - "lifeLessons": Practical advice, recommendations, or conclusions for readers.
-
-    RULES:
-    - Do NOT add information not present in the text.
-    - Be concise and meaningful.
-    - If a section is not applicable, return an empty array.
-    - Output ONLY valid JSON.
-
-    JSON FORMAT:
-    {
-      "mainIdea": "String",
-      "keyConcepts": ["String"],
-      "examples": ["String"],
-      "mentalModels": ["String"],
-      "lifeLessons": ["String"]
-    }
-
-    ARTICLE TEXT:
-    "${chapterText.substring(0, 15000)}" 
-    `;
-
-  const fictionPrompt = `
-    You are an expert literary analyst helping readers understand fiction deeply.
-
-    TASK:
-    Summarize the following chapter from a fiction book into a structured JSON object.
-
-    INTERPRETATION GUIDE (same JSON keys, fiction meaning):
-    - "mainIdea": The central theme, conflict, or narrative arc of this chapter.
-    - "keyConcepts": Key characters, relationships, or plot developments.
-    - "examples": Important scenes, dialogues, or pivotal moments.
-    - "mentalModels": Symbolic meanings, motifs, or literary devices used.
-    - "lifeLessons": Moral insights, character lessons, or universal truths conveyed.
-
-    RULES:
-    - Do NOT add information not present in the text.
-    - Be concise and meaningful.
-    - If a section is not applicable, return an empty array.
-    - Output ONLY valid JSON.
-
-    JSON FORMAT:
-    {
-      "mainIdea": "String",
-      "keyConcepts": ["String"],
-      "examples": ["String"],
-      "mentalModels": ["String"],
-      "lifeLessons": ["String"]
-    }
-
-    CHAPTER TEXT:
-    "${chapterText.substring(0, 15000)}" 
-    `;
-
-  const nonfictionPrompt = `
-    You are an expert analyst helping readers extract actionable knowledge from non-fiction.
-
-    TASK:
-    Summarize the following chapter from a non-fiction book into a structured JSON object.
-
-    INTERPRETATION GUIDE (non-fiction meaning):
-    - "mainIdea": The central argument, thesis, or main point of this chapter.
-    - "keyConcepts": Core concepts, frameworks, or ideas introduced.
-    - "examples": Case studies, research findings, or real-world examples used.
-    - "mentalModels": Thinking frameworks, decision-making tools, or cognitive models presented.
-    - "lifeLessons": Actionable advice, practical takeaways, or behavioral recommendations.
-
-    RULES:
-    - Do NOT add information not present in the text.
-    - Be concise and meaningful.
-    - If a section is not applicable, return an empty array.
-    - Output ONLY valid JSON.
-
-    JSON FORMAT:
-    {
-      "mainIdea": "String",
-      "keyConcepts": ["String"],
-      "examples": ["String"],
-      "mentalModels": ["String"],
-      "lifeLessons": ["String"]
-    }
-
-    CHAPTER TEXT:
-    "${chapterText.substring(0, 15000)}" 
-    `;
-
-  // Select prompt based on sourceType first, then bookType
-  let prompt;
-  if (sourceType === "youtube") {
-    prompt = youtubePrompt;
-  } else if (sourceType === "blog") {
-    prompt = blogPrompt;
-  } else {
-    prompt = isFiction ? fictionPrompt : nonfictionPrompt;
-  }
-  console.log(
-    "[AI Service] Generating structured summary (with retry capability)...",
-  );
-
-  let attempts = 0;
-  const maxAttempts = 3;
-
-  console.log(
-    chapterText.substring(0, 15000),
-    "=====================================",
-    chapterText,
-  );
-
-  while (attempts < maxAttempts) {
-    attempts++;
-    try {
-      console.log(
-        `[AI Service] Attempt ${attempts}/${maxAttempts} for structured summary...`,
-      );
-      const response = await ollama.chat({
-        model: "gemma3:4b",
-        messages: [{ role: "user", content: prompt }],
-        format: "json",
-        stream: false,
-      });
-      console.log("response", response);
-
-      console.log(
-        "[AI Service] Raw AI Response:",
-        response.message.content.substring(0, 500), // Log first 500 chars for debugging
-      );
-
-      const parsed = JSON.parse(response.message.content);
-      console.log(
-        "[AI Service] Structured summary response:",
-        JSON.stringify(parsed).substring(0, 300),
-      );
-
-      // Validate the response has required fields
-      if (
-        !parsed.mainIdea &&
-        (!parsed.keyConcepts || parsed.keyConcepts.length === 0)
-      ) {
-        console.warn(
-          `[AI Service] Structured summary attempt ${attempts} missing required fields:`,
-          parsed,
-        );
-        if (attempts === maxAttempts) {
-          throw new Error(
-            "AI returned invalid structured summary after multiple attempts - missing mainIdea and keyConcepts",
-          );
-        }
-        continue; // Retry
-      }
-
-      return parsed;
-    } catch (error) {
-      console.warn(
-        `[AI Service] Structured summary attempt ${attempts} failed:`,
-        error.message,
-      );
-      if (attempts === maxAttempts) {
-        console.error("AI Service Error (Summary):", error);
-        throw error;
-      }
-      // Small delay before retry
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-  }
-}
-
-async function generateAtomicNotes(chapterSummaryJSON) {
-  // Validate input - log warning if summary is mostly empty
-  const hasContent =
-    chapterSummaryJSON.mainIdea ||
-    (chapterSummaryJSON.keyConcepts &&
-      chapterSummaryJSON.keyConcepts.length > 0) ||
-    (chapterSummaryJSON.examples && chapterSummaryJSON.examples.length > 0);
-
-  if (!hasContent) {
-    console.warn(
-      "[AI Service] generateAtomicNotes received empty summary:",
-      JSON.stringify(chapterSummaryJSON),
-    );
+async function generateAtomicNotes(chapterOverview) {
+  if (
+    !chapterOverview ||
+    typeof chapterOverview !== "string" ||
+    chapterOverview.trim() === ""
+  ) {
+    console.warn("[AI Service] generateAtomicNotes received empty overview");
     return [];
   }
 
   console.log(
-    "[AI Service] Generating atomic notes from summary:",
-    JSON.stringify(chapterSummaryJSON).substring(0, 200),
+    "[AI Service] Generating atomic notes from overview:",
+    chapterOverview.substring(0, 200),
   );
 
   const prompt = `
     You are helping build a personal knowledge base using the Zettelkasten method.
 
     TASK:
-    Convert the structured chapter summary below into atomic knowledge notes.
-    Each note should capture ONE key insight, concept, or principle from the summary.
+    Convert the chapter overview below into atomic knowledge notes.
+    Each note should capture ONE key insight, concept, or principle from the overview.
 
     IMPORTANT:
-    - Generate notes ONLY based on the content provided in CHAPTER SUMMARY below.
+    - Generate notes ONLY based on the content provided in CHAPTER OVERVIEW below.
     - Do NOT generate generic notes about Zettelkasten or note-taking methods.
-    - Focus on the actual topics, concepts, and ideas from the summary.
+    - Focus on the actual topics, concepts, and ideas from the overview.
 
     RULES:
-    - Each note must represent ONE independent idea from the summary.
+    - Each note must represent ONE independent idea from the overview.
     - Notes must be reusable across contexts.
     - Avoid book-specific phrasing (e.g., "In this chapter...").
     - Keep each note under 120 words.
@@ -416,8 +252,8 @@ async function generateAtomicNotes(chapterSummaryJSON) {
       }
     ]
 
-    CHAPTER SUMMARY:
-    ${JSON.stringify(chapterSummaryJSON)}
+    CHAPTER OVERVIEW:
+    ${chapterOverview}
     `;
 
   try {
@@ -889,7 +725,6 @@ async function generateFolderStructure(
 
 module.exports = {
   generateChapterOverview,
-  generateStructuredSummary,
   generateAtomicNotes,
   generateOverallAnalysis,
   explainLinkRelationship,

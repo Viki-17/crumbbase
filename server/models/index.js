@@ -54,11 +54,6 @@ const chapterSchema = new mongoose.Schema({
     enum: ["pending", "processing", "completed", "skipped", "failed"],
     default: "pending",
   },
-  analysisStatus: {
-    type: String,
-    enum: ["pending", "processing", "completed", "skipped", "failed"],
-    default: "pending",
-  },
   notesStatus: {
     type: String,
     enum: ["pending", "processing", "completed", "skipped", "failed"],
@@ -76,11 +71,6 @@ const summarySchema = new mongoose.Schema({
   type: { type: String, default: "chapter_summary" },
   chapterId: String,
   overview: String,
-  mainIdea: String,
-  keyConcepts: [String],
-  examples: [String],
-  mentalModels: [String],
-  lifeLessons: [String],
   createdAt: { type: Date, default: Date.now },
 });
 

@@ -51,9 +51,6 @@ async function processJob(job) {
       case "overview":
         await handleOverview(bookId, chapterId);
         break;
-      case "analysis":
-        await handleAnalysis(bookId, chapterId);
-        break;
       case "notes":
         await handleNotes(bookId, chapterId);
         break;
@@ -174,65 +171,16 @@ async function handleOverview(bookId, chapterId) {
     status: "completed",
   });
 
-  // 6. Trigger Next Step (Analysis) - only if current stage succeeded
+  // 6. Trigger Next Step (Notes) - only if current stage succeeded
   rabbitmq.publishJob({
-    type: "analysis",
+    type: "notes",
     bookId,
     chapterId,
-    stage: "analysis",
+    stage: "notes",
   });
 }
 
-async function handleAnalysis(bookId, chapterId) {
-  if (await isCancelled(bookId, chapterId)) return;
 
-  const chapter = await getChapter(chapterId);
-  if (!chapter) return;
-
-  const book = await getBook(bookId);
-  const bookType = book?.bookType || "nonfiction";
-  const sourceType = book?.sourceType || null; // YouTube, blog, or null
-
-  console.log(
-    `[Worker] Generating Analysis for ${chapterId} (${bookType}, source: ${sourceType || "default"})`,
-  );
-  await updateChapter(chapterId, { analysisStatus: "processing" });
-  rabbitmq.publishEvent({
-    type: "stageStatus",
-    bookId,
-    chapterId,
-    stage: "analysis",
-    status: "processing",
-  });
-
-  const summaryJSON = await aiService.generateStructuredSummary(
-    chapter.rawText,
-    bookType,
-    sourceType,
-  );
-
-  if (await isCancelled(bookId, chapterId)) return;
-
-  let summary = await getChapterSummary(chapter.summaryId);
-  // It handles if summary is missing (should verify previous step success?)
-  if (!summary) summary = { id: uuidv4(), chapterId, type: "chapter_summary" };
-
-  Object.assign(summary, summaryJSON);
-  await saveChapterSummary(summary);
-
-  await updateChapter(chapterId, { analysisStatus: "completed" });
-  rabbitmq.publishEvent({
-    type: "stageStatus",
-    bookId,
-    chapterId,
-    stage: "analysis",
-    status: "completed",
-  });
-  rabbitmq.publishEvent({ type: "chapterDone", bookId, chapterId, summary }); // Update UI
-
-  // Trigger Next Step (Notes) - only if current stage succeeded
-  rabbitmq.publishJob({ type: "notes", bookId, chapterId, stage: "notes" });
-}
 
 async function handleNotes(bookId, chapterId) {
   if (await isCancelled(bookId, chapterId)) return;
@@ -242,15 +190,15 @@ async function handleNotes(bookId, chapterId) {
 
   console.log(`[Worker] Generating Notes for ${chapterId}`);
 
-  // Check if analysis was completed - notes require analysis data
-  if (chapter.analysisStatus !== "completed") {
+  // Check if overview was completed - notes require overview data
+  if (chapter.overviewStatus !== "completed") {
     console.warn(
-      `[Worker] Analysis not completed for ${chapterId}, status: ${chapter.analysisStatus}`,
+      `[Worker] Overview not completed for ${chapterId}, status: ${chapter.overviewStatus}`,
     );
     throw new Error(
-      `Cannot generate notes - analysis stage is ${
-        chapter.analysisStatus || "pending"
-      }. Run analysis first.`,
+      `Cannot generate notes - overview stage is ${
+        chapter.overviewStatus || "pending"
+      }. Run overview first.`,
     );
   }
 
@@ -264,37 +212,17 @@ async function handleNotes(bookId, chapterId) {
   });
 
   const summary = await getChapterSummary(chapter.summaryId);
-  if (!summary)
-    throw new Error("Summary document missing for notes generation");
-
-  // Log what we have in the summary
-  console.log(`[Worker] Summary for ${chapterId}:`, {
-    hasMainIdea: !!summary.mainIdea,
-    keyConceptsCount: summary.keyConcepts?.length || 0,
-    examplesCount: summary.examples?.length || 0,
-  });
-
-  // Validate summary has required fields from analysis stage
-  if (
-    !summary.mainIdea &&
-    (!summary.keyConcepts || summary.keyConcepts.length === 0)
-  ) {
+  if (!summary || !summary.overview) {
     throw new Error(
-      "Summary has no usable content for notes generation - analysis may have failed",
+      "Summary document missing or has no usable content for notes generation - overview may have failed",
     );
   }
 
   // Clear existing
   await deleteNotesByChapter(bookId, chapterId);
 
-  // Pass complete summary to generate better notes
-  const notesData = await aiService.generateAtomicNotes({
-    mainIdea: summary.mainIdea || "",
-    keyConcepts: summary.keyConcepts || [],
-    examples: summary.examples || [],
-    mentalModels: summary.mentalModels || [],
-    lifeLessons: summary.lifeLessons || [],
-  });
+  // Pass overview to generate notes
+  const notesData = await aiService.generateAtomicNotes(summary.overview);
 
   if (await isCancelled(bookId, chapterId)) return;
 
@@ -382,11 +310,9 @@ async function handleBookAnalysis(bookId, payload) {
     // Check granular stage statuses instead of just chapter status
     const overviewDone =
       chap.overviewStatus === "completed" || chap.overviewStatus === "skipped";
-    const analysisDone =
-      chap.analysisStatus === "completed" || chap.analysisStatus === "skipped";
     const notesDone =
       chap.notesStatus === "completed" || chap.notesStatus === "skipped";
-    const chapterComplete = overviewDone && analysisDone && notesDone;
+    const chapterComplete = overviewDone && notesDone;
 
     if (!chapterComplete) {
       if (!forceRegenerate) {
