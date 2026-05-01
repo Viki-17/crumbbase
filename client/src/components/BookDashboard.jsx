@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Pencil, RefreshCw, Trash2, CheckCircle2, Clock, XCircle, Zap, SkipForward, BookOpen, Brain, BookText, Volume2, Pause, Loader2 } from "lucide-react";
+import { ArrowLeft, Pencil, RefreshCw, Trash2, CheckCircle2, Clock, XCircle, Zap, SkipForward, BookOpen, Brain, BookText, Volume2, Pause, Loader2, X } from "lucide-react";
 import axios from "axios";
 import api from "../api";
 import { toast } from "react-hot-toast";
@@ -60,9 +60,11 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
     }
   };
 
-  // Local loading states for manual triggers
   const [loadingStep, setLoadingStep] = useState(null); // { chapterId: string, step: string } or null
   const abortControllerRef = useRef(null);
+  const [isRegeneratingBook, setIsRegeneratingBook] = useState(false);
+  const [isRegeneratingAnalysis, setIsRegeneratingAnalysis] = useState(false);
+  const [popupNote, setPopupNote] = useState(null);
 
   // Streaming State
   const [streamingOverviews, setStreamingOverviews] = useState({});
@@ -284,22 +286,28 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
     ) {
       return;
     }
+    setIsRegeneratingBook(true);
     try {
       await api.post(`/books/${bookId}/regenerate`);
       toast.success("Book regeneration started");
       fetchBook();
     } catch (err) {
       toast.error("Failed to start regeneration");
+    } finally {
+      setIsRegeneratingBook(false);
     }
   };
 
   const handleRegenerateAnalysis = async () => {
+    setIsRegeneratingAnalysis(true);
     try {
       await api.post(`/books/${bookId}/regenerate-analysis`);
       toast.success("Analysis regeneration started");
       fetchBook();
     } catch (err) {
       toast.error("Failed to regenerate analysis");
+    } finally {
+      setIsRegeneratingAnalysis(false);
     }
   };
 
@@ -888,8 +896,13 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                 onClick={handleRegenerateBook}
                 className="btn-ghost"
                 style={{ color: "var(--warning)" }}
+                disabled={isRegeneratingBook}
               >
-                <RefreshCw size={13} /> Regenerate All
+                {isRegeneratingBook ? (
+                  <><Loader2 size={13} className="spin" /> Starting...</>
+                ) : (
+                  <><RefreshCw size={13} /> Regenerate All</>
+                )}
               </button>
               <button
                 onClick={handleDelete}
@@ -1034,8 +1047,13 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                             padding: "0.6rem 1.25rem",
                             fontSize: "0.9rem",
                           }}
+                          disabled={selectedChapter.overviewStatus === 'processing' || (loadingStep && loadingStep.chapterId === selectedChapter.id && loadingStep.step === "overview")}
                         >
-                          <RefreshCw size={13} /> Regenerate
+                          {(loadingStep && loadingStep.chapterId === selectedChapter.id && loadingStep.step === "overview") || selectedChapter.overviewStatus === 'processing' ? (
+                            <><Loader2 size={13} className="spin" /> Generating...</>
+                          ) : (
+                            <><RefreshCw size={13} /> Regenerate</>
+                          )}
                         </button>
                         <button
                           onClick={handleListen}
@@ -1092,8 +1110,13 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                             alignItems: "center",
                             gap: "6px",
                           }}
+                          disabled={selectedChapter.notesStatus === 'processing' || (loadingStep && loadingStep.chapterId === selectedChapter.id && loadingStep.step === "notes")}
                         >
-                          <RefreshCw size={13} /> Regenerate
+                          {(loadingStep && loadingStep.chapterId === selectedChapter.id && loadingStep.step === "notes") || selectedChapter.notesStatus === 'processing' ? (
+                            <><Loader2 size={13} className="spin" /> Generating...</>
+                          ) : (
+                            <><RefreshCw size={13} /> Regenerate</>
+                          )}
                         </button>
                       </div>
                       <div
@@ -1110,6 +1133,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                             note={note}
                             onUpdate={handleUpdateNote}
                             onDeleteNote={handleDeleteNote}
+                            onSelect={() => setPopupNote(note)}
                           />
                         ))}
                       </div>
@@ -1149,8 +1173,13 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                 alignItems: "center",
                 gap: "6px",
               }}
+              disabled={isRegeneratingAnalysis}
             >
-              <RefreshCw size={13} /> Regenerate
+              {isRegeneratingAnalysis ? (
+                <><Loader2 size={13} className="spin" /> Starting...</>
+              ) : (
+                <><RefreshCw size={13} /> Regenerate</>
+              )}
             </button>
           )}
         </div>
@@ -1205,8 +1234,8 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
             <p style={{ marginBottom: "1rem", opacity: 0.7 }}>
               You skipped book analysis.
             </p>
-            <button onClick={handleRegenerateAnalysis} className="btn-primary">
-              Generate Book Analysis
+            <button onClick={handleRegenerateAnalysis} className="btn-primary" disabled={isRegeneratingAnalysis}>
+              {isRegeneratingAnalysis ? <><Loader2 size={14} className="spin" style={{marginRight: '6px'}}/> Starting...</> : "Generate Book Analysis"}
             </button>
           </div>
         ) : book.status === "analysis_failed" ? (
@@ -1244,8 +1273,9 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
               <button
                 onClick={handleRegenerateAnalysis}
                 className="btn-primary"
+                disabled={isRegeneratingAnalysis}
               >
-                Retry
+                {isRegeneratingAnalysis ? <><Loader2 size={14} className="spin" style={{marginRight: '6px'}}/> Starting...</> : "Retry"}
               </button>
               <button onClick={handleSkipAnalysis} className="btn-ghost">
                 Skip
@@ -1270,8 +1300,9 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
               <button
                 onClick={handleRegenerateAnalysis}
                 className="btn-primary"
+                disabled={isRegeneratingAnalysis}
               >
-                Generate Book Analysis
+                {isRegeneratingAnalysis ? <><Loader2 size={14} className="spin" style={{marginRight: '6px'}}/> Starting...</> : "Generate Book Analysis"}
               </button>
               <button onClick={handleSkipAnalysis} className="btn-ghost">
                 Skip
@@ -1280,6 +1311,60 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
           </div>
         )}
       </div>
+
+      {/* Atomic Note Popup Modal */}
+      {popupNote && (
+        <div
+          onClick={() => setPopupNote(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            backdropFilter: 'blur(2px)'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-main)',
+              borderRadius: '12px',
+              padding: '2rem',
+              width: '90%',
+              maxWidth: '600px',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              border: '1px solid var(--border-color)'
+            }}
+            className="card"
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.5rem', fontWeight: 'bold' }}>{popupNote.title}</h2>
+              <button
+                onClick={() => setPopupNote(null)}
+                className="btn-ghost btn-icon"
+                style={{ padding: '4px', marginTop: '-4px', marginRight: '-4px' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ fontSize: '1.05rem', lineHeight: '1.6', color: 'var(--text-secondary)', marginBottom: '2rem', whiteSpace: 'pre-wrap' }}>
+              {popupNote.content}
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              {popupNote.tags?.map((t) => (
+                <span key={t} className="note-tag" style={{ background: 'var(--bg-surface-2)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
+                  #{t}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

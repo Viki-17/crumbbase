@@ -187,7 +187,7 @@ async function generateChapterOverview(
     Prioritize depth, thoroughness, and maximum value extraction over conciseness. The reader should feel they have deeply understood the chapter's intricacies without having to read it themselves. Do NOT use Markdown tables; use bullet points, bold text, or standard paragraphs instead. Format nicely in Markdown.
     
     CHAPTER TEXT:
-    "\${chapterText.substring(0, 10000)}"
+    "${chapterText.substring(0, 10000)}"
     `;
 
   // Select prompt based on sourceType first, then bookType
