@@ -10,6 +10,8 @@ import {
   ChevronRight,
   Youtube,
   PenTool,
+  BookMarked,
+  Loader2,
 } from "lucide-react";
 import "./../../styles/sidebar.css";
 import "./../../styles/sidebar-grouping.css";
@@ -76,7 +78,8 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
     <div className="sidebar">
       <div className="sidebar-header">
         <div className="sidebar-title" onClick={() => onSelectView("home")}>
-          📚 CrumbBase
+          <BookMarked size={18} />
+          CrumbBase
         </div>
       </div>
 
@@ -90,13 +93,13 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
             onClick={() => toggleSection("library")}
           >
             <div className="sidebar-section-title">
-              <BookOpen size={14} />
+              <BookOpen size={12} />
               <span>Library</span>
             </div>
             {sections.library ? (
-              <ChevronDown size={14} />
+              <ChevronDown size={12} />
             ) : (
-              <ChevronRight size={14} />
+              <ChevronRight size={12} />
             )}
           </div>
           <div className="sidebar-section-content">
@@ -215,23 +218,23 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
             onClick={() => toggleSection("notes")}
           >
             <div className="sidebar-section-title">
-              <FileText size={14} />
+              <FileText size={12} />
               <span>Notes</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               {notesCount > 0 && (
                 <span className="sidebar-item-badge">{notesCount}</span>
               )}
               {sections.notes ? (
-                <ChevronDown size={14} />
+                <ChevronDown size={12} />
               ) : (
-                <ChevronRight size={14} />
+                <ChevronRight size={12} />
               )}
             </div>
           </div>
           <div className="sidebar-section-content">
             <div className="sidebar-item" onClick={() => onSelectView("notes")}>
-              <FileText className="sidebar-item-icon" size={16} />
+              <FileText className="sidebar-item-icon" size={14} />
               <span className="sidebar-item-text">All Notes</span>
             </div>
           </div>
@@ -246,17 +249,17 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
             onClick={() => toggleSection("folders")}
           >
             <div className="sidebar-section-title">
-              <Folder size={14} />
+              <Folder size={12} />
               <span>Folders</span>
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               {foldersCount > 0 && (
                 <span className="sidebar-item-badge">{foldersCount}</span>
               )}
               {sections.folders ? (
-                <ChevronDown size={14} />
+                <ChevronDown size={12} />
               ) : (
-                <ChevronRight size={14} />
+                <ChevronRight size={12} />
               )}
             </div>
           </div>
@@ -265,7 +268,7 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
               className="sidebar-item"
               onClick={() => onSelectView("folders")}
             >
-              <Folder className="sidebar-item-icon" size={16} />
+              <Folder className="sidebar-item-icon" size={14} />
               <span className="sidebar-item-text">AI-Organized</span>
             </div>
           </div>
@@ -274,7 +277,7 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
         {/* Graph View */}
         <div className="sidebar-section">
           <div className="sidebar-item" onClick={() => onSelectView("graph")}>
-            <Network className="sidebar-item-icon" size={16} />
+            <Network className="sidebar-item-icon" size={14} />
             <span className="sidebar-item-text">Graph View</span>
           </div>
         </div>
@@ -286,7 +289,7 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
               className="sidebar-item"
               onClick={() => onSelectView("processing")}
             >
-              <Activity className="sidebar-item-icon" size={16} />
+              <Loader2 className="sidebar-item-icon spin" size={14} />
               <span className="sidebar-item-text">Processing</span>
               <span className="sidebar-item-badge">{processingCount}</span>
             </div>
@@ -294,7 +297,7 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
         )}
       </div>
 
-      <div className="sidebar-footer">v8.0 - Modern UI</div>
+      <div className="sidebar-footer">v9.0</div>
     </div>
   );
 };
@@ -309,10 +312,10 @@ const SidebarItem = ({ book, selectedBook, onSelectView, type }) => {
       className={`sidebar-item ${selectedBook?.id === book.id ? "active" : ""}`}
       onClick={() => onSelectView("book", book.id)}
     >
-      <Icon className="sidebar-item-icon" size={16} />
+      <Icon className="sidebar-item-icon" size={14} />
       <span className="sidebar-item-text truncate">{book.title}</span>
       {book.status === "processing" && (
-        <span className="sidebar-item-badge">⏳</span>
+        <Loader2 size={12} className="spin" style={{ opacity: 0.6, flexShrink: 0 }} />
       )}
     </div>
   );

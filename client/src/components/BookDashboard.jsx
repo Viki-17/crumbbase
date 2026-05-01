@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Pencil, RefreshCw, Trash2, CheckCircle2, Clock, XCircle, Zap, SkipForward, BookOpen, Brain, BookText, Volume2, Pause, Loader2 } from "lucide-react";
 import axios from "axios";
 import api from "../api";
 import { toast } from "react-hot-toast";
@@ -367,10 +367,125 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
   );
   const summary = selectedChapter?.summary;
 
-  const overviewContent =
+  // Sanitize AI-generated markdown to fix rendering issues
+  const sanitizeMarkdown = (text) => {
+    if (!text) return text;
+
+    let result = text;
+
+    // 1. Fix single-line markdown tables: convert them into structured bullet lists
+    // Matches patterns like: | Header1 | Header2 | ... | |---| ... | Cell1 | Cell2 | ...
+    // These appear when the AI outputs an entire table on one line
+    const singleLineTablePattern = /\|[^|\n]+(?:\|[^|\n]+){2,}/;
+    if (singleLineTablePattern.test(result) && !result.includes('\n|')) {
+      // Split the single-line mess into rows by finding | followed by | patterns
+      // First, insert newlines before each row start (after separator row and data rows)
+      // Strategy: split by | and rebuild
+      
+      // Extract all cells by splitting on |
+      const cells = result.split('|').map(c => c.trim()).filter(c => c && !c.match(/^[-:]+$/));
+      
+      if (cells.length > 0) {
+        // Try to detect headers (first few cells before a separator like ---)
+        const rawParts = result.split('|').map(c => c.trim()).filter(Boolean);
+        const sepIndex = rawParts.findIndex(p => /^[-:]+$/.test(p));
+        
+        let headers = [];
+        let dataCells = [];
+        
+        if (sepIndex > 0) {
+          headers = rawParts.slice(0, sepIndex).filter(h => !h.match(/^[-:]+$/));
+          dataCells = rawParts.slice(sepIndex).filter(c => !c.match(/^[-:]+$/));
+        } else {
+          dataCells = cells;
+        }
+        
+        const colCount = headers.length || 3; // fallback
+        
+        // Group data cells into rows
+        const rows = [];
+        for (let i = 0; i < dataCells.length; i += colCount) {
+          rows.push(dataCells.slice(i, i + colCount));
+        }
+        
+        // Convert to bullet list format
+        let converted = '';
+        rows.forEach((row, idx) => {
+          if (headers.length > 0 && row.length > 0) {
+            converted += `\n**${row[0] || `Item ${idx + 1}`}**\n\n`;
+            for (let c = 1; c < row.length; c++) {
+              if (row[c]) {
+                const label = headers[c] ? `**${headers[c]}:** ` : '';
+                // Convert <br> tags to actual line breaks within cells
+                const cellContent = row[c].replace(/<br\s*\/?>/gi, '\n  ');
+                converted += `- ${label}${cellContent}\n`;
+              }
+            }
+            converted += '\n';
+          } else {
+            row.forEach(cell => {
+              if (cell) {
+                const cellContent = cell.replace(/<br\s*\/?>/gi, '\n  ');
+                converted += `- ${cellContent}\n`;
+              }
+            });
+          }
+        });
+        
+        result = converted;
+      }
+    }
+
+    // 2. Convert properly-formatted multi-line markdown tables to bullet lists too
+    // Match multi-line tables: lines starting with |
+    const multiLineTableRegex = /(?:^|\n)(\|.+\|(?:\n\|.+\|)+)/g;
+    result = result.replace(multiLineTableRegex, (match, tableBlock) => {
+      const lines = tableBlock.trim().split('\n').filter(l => l.trim());
+      
+      // Skip if too few lines
+      if (lines.length < 3) return match;
+      
+      // Parse header row
+      const headerLine = lines[0];
+      const headers = headerLine.split('|').map(h => h.trim()).filter(Boolean);
+      
+      // Skip separator row (line with dashes)
+      const dataLines = lines.slice(2); // skip header + separator
+      
+      let converted = '\n';
+      dataLines.forEach((line, idx) => {
+        const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+        if (cells.length === 0) return;
+        
+        converted += `**${cells[0] || `Item ${idx + 1}`}**\n\n`;
+        for (let c = 1; c < cells.length; c++) {
+          if (cells[c]) {
+            const label = headers[c] ? `**${headers[c]}:** ` : '';
+            const cellContent = cells[c].replace(/<br\s*\/?>/gi, '\n  ');
+            converted += `- ${label}${cellContent}\n`;
+          }
+        }
+        converted += '\n';
+      });
+      
+      return converted;
+    });
+
+    // 3. Convert remaining <br> tags to newlines
+    result = result.replace(/<br\s*\/?>/gi, '\n');
+
+    // 4. Convert bullet character • to standard markdown dash
+    result = result.replace(/•/g, '-');
+
+    return result;
+  };
+
+  const rawOverviewContent =
     selectedChapterId && streamingOverviews[selectedChapterId]
       ? streamingOverviews[selectedChapterId]
       : summary?.overview || "";
+
+  const overviewContent = sanitizeMarkdown(rawOverviewContent);
 
   // Helper to render Generate Button or Loading State
   const renderGenerateButton = (step, label) => {
@@ -429,7 +544,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
             animation: "pulse 1.5s infinite",
           }}
         >
-          <div style={{ fontSize: "2rem", marginBottom: "1rem" }}>⚡</div>
+          <div style={{ marginBottom: "1rem" }}><Zap size={28} style={{ color: 'var(--warning)' }} /></div>
           <p>{message}</p>
           <div style={{ marginTop: "1rem" }}>
             <button
@@ -480,15 +595,16 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
   };
 
   const getTabStatusIcon = (status) => {
+    const iconStyle = { marginLeft: '4px', verticalAlign: 'middle' };
     switch (status) {
       case "completed":
-        return "✅";
+        return <CheckCircle2 size={12} style={{ ...iconStyle, color: 'var(--success)' }} />;
       case "skipped":
-        return "⏭️";
+        return <SkipForward size={12} style={{ ...iconStyle, color: 'var(--text-tertiary)' }} />;
       case "failed":
-        return "❌";
+        return <XCircle size={12} style={{ ...iconStyle, color: 'var(--error)' }} />;
       case "processing":
-        return "⚡";
+        return <Zap size={12} style={{ ...iconStyle, color: 'var(--warning)' }} />;
       default:
         return "";
     }
@@ -583,7 +699,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                   style={{ flexShrink: 0 }}
                   title="Edit Title"
                 >
-                  ✏️
+                  <Pencil size={14} />
                 </button>
               </div>
             )}
@@ -649,7 +765,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                     }}
                     title="Save"
                   >
-                    ✅
+                    <CheckCircle2 size={14} style={{ color: 'var(--success)' }} />
                   </button>
                   <button
                     onClick={() => setIsEditingType(false)}
@@ -662,7 +778,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                     }}
                     title="Cancel"
                   >
-                    ❌
+                    <XCircle size={14} style={{ color: 'var(--error)' }} />
                   </button>
                 </div>
               ) : (
@@ -703,7 +819,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                     style={{ padding: "2px", height: "auto", minHeight: "0" }}
                     title="Edit Type"
                   >
-                    ✏️
+                    <Pencil size={12} />
                   </button>
                 </div>
               )}
@@ -747,9 +863,9 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                     }}
                   >
                     {effectiveStatus === "processing"
-                      ? "⏳ Processing"
+                      ? <><Clock size={11} style={{ marginRight: '3px' }} /> Processing</>
                       : effectiveStatus === "done"
-                        ? "✅ Ready"
+                        ? <><CheckCircle2 size={11} style={{ marginRight: '3px' }} /> Ready</>
                         : "Error"}
                   </span>
                 );
@@ -764,7 +880,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                   marginBottom: "0.5rem",
                 }}
               >
-                ⚡ {statusMsg}
+                <Zap size={14} style={{ color: 'var(--warning)', flexShrink: 0 }} /> {statusMsg}
               </div>
             )}
             <div className="book-header-actions">
@@ -773,14 +889,14 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                 className="btn-ghost"
                 style={{ color: "var(--warning)" }}
               >
-                🔄 Regenerate All
+                <RefreshCw size={13} /> Regenerate All
               </button>
               <button
                 onClick={handleDelete}
                 className="btn-ghost"
                 style={{ color: "var(--error)" }}
               >
-                Delete Book
+                <Trash2 size={13} /> Delete
               </button>
             </div>
           </div>
@@ -883,13 +999,13 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                   }`}
                   onClick={() => setActiveTab("overview")}
                 >
-                  📖 Overview {getTabStatusIcon(selectedChapter.overviewStatus)}
+                  <BookOpen size={14} /> Overview {getTabStatusIcon(selectedChapter.overviewStatus)}
                 </button>
                 <button
                   className={`tab-btn ${activeTab === "notes" ? "active" : ""}`}
                   onClick={() => setActiveTab("notes")}
                 >
-                  🧠 Atomic Notes ({chapterNotes.length}){" "}
+                  <Brain size={14} /> Atomic Notes ({chapterNotes.length}){" "}
                   {getTabStatusIcon(selectedChapter.notesStatus)}
                 </button>
               </div>
@@ -919,7 +1035,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                             fontSize: "0.9rem",
                           }}
                         >
-                          🔄 Regenerate
+                          <RefreshCw size={13} /> Regenerate
                         </button>
                         <button
                           onClick={handleListen}
@@ -940,11 +1056,11 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                           }}
                         >
                           {isAudioLoading ? (
-                            "⏳ Loading..."
+                            <><Loader2 size={14} className="spin" /> Loading...</>
                           ) : isPlaying ? (
-                            <>⏸ Stop Listening</>
+                            <><Pause size={14} /> Stop Listening</>
                           ) : (
-                            <>🔊 Listen to Overview</>
+                            <><Volume2 size={14} /> Listen to Overview</>
                           )}
                         </button>
                       </div>
@@ -977,7 +1093,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                             gap: "6px",
                           }}
                         >
-                          🔄 Regenerate
+                          <RefreshCw size={13} /> Regenerate
                         </button>
                       </div>
                       <div
@@ -1022,7 +1138,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
             marginBottom: "1rem",
           }}
         >
-          <h2 style={{ margin: 0 }}>📘 Overall Book Analysis</h2>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}><BookText size={20} style={{ color: 'var(--primary)' }} /> Overall Book Analysis</h2>
           {book.overallAnalysis && (
             <button
               onClick={handleRegenerateAnalysis}
@@ -1034,7 +1150,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                 gap: "6px",
               }}
             >
-              🔄 Regenerate
+              <RefreshCw size={13} /> Regenerate
             </button>
           )}
         </div>
@@ -1109,7 +1225,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
                 color: "var(--error)",
               }}
             >
-              ❌ Book analysis generation failed.
+              <XCircle size={14} style={{ color: 'var(--error)', display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} /> Book analysis generation failed.
             </p>
             {book.analysisError && (
               <p

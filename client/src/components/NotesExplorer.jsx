@@ -13,23 +13,18 @@ import {
   Sparkles,
   ChevronDown,
   ChevronRight,
+  Brain,
+  Link,
 } from "lucide-react";
 import NoteCard from "./NoteCard";
 
 const NotesExplorer = ({ onSelectView, initialState }) => {
   const [notes, setNotes] = useState([]);
   const [folders, setFolders] = useState([]);
-
-  // View State: 'all' | 'folders' | 'ask'
-  // If initialState is provided, restore it, otherwise default to 'all'
   const [viewMode, setViewMode] = useState(initialState?.viewMode || "all");
-
-  // For 'folders' view - specific accordion state
   const [expandedFolders, setExpandedFolders] = useState(
     initialState?.expandedFolders || [],
   );
-
-  // Pagination state
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [totalNotes, setTotalNotes] = useState(0);
@@ -40,16 +35,13 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
   const [askQuery, setAskQuery] = useState(initialState?.askQuery || "");
   const [askResults, setAskResults] = useState(initialState?.askResults || []);
   const [isAsking, setIsAsking] = useState(false);
-
   const [selectedNotes, setSelectedNotes] = useState([]);
   const [explanation, setExplanation] = useState(null);
   const [isExplaining, setIsExplaining] = useState(false);
   const [isLinking, setIsLinking] = useState(false);
   const [isOrganizing, setIsOrganizing] = useState(false);
-  const [organizationProgress, setOrganizationProgress] = useState(null); // { current, total }
+  const [organizationProgress, setOrganizationProgress] = useState(null);
   const [graph, setGraph] = useState({ nodes: {}, edges: [] });
-
-  // New folder creation state
   const [isCreatingFolder, setIsCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
 
@@ -67,7 +59,6 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
           params: { page: pageNum, limit: 20, search: searchQuery },
         });
         const { notes: fetchedNotes, pagination } = res.data;
-
         if (reset) {
           setNotes(fetchedNotes);
         } else {
@@ -101,7 +92,6 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
   const handleAsk = async (e) => {
     e.preventDefault();
     if (!askQuery.trim()) return;
-
     setIsAsking(true);
     try {
       const res = await api.post("/notes/ask", { query: askQuery });
@@ -132,21 +122,13 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
       setIsOrganizing(true);
       setOrganizationProgress(null);
       toast("AI is organizing your notes...");
-
-      // Subscribe to SSE for folder events
       const eventSource = new EventSource("/api/folders/events");
-
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-
           if (data.type === "foldersProgress") {
-            // Progressive update - show partial results
             setFolders(data.folders || []);
-            setOrganizationProgress({
-              current: data.current,
-              total: data.total,
-            });
+            setOrganizationProgress({ current: data.current, total: data.total });
             toast(`Processing batch ${data.current}/${data.total}...`);
           } else if (data.type === "foldersDone") {
             setFolders(data.folders || []);
@@ -167,13 +149,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
           console.error("Error parsing SSE event:", e);
         }
       };
-
-      eventSource.onerror = () => {
-        // Don't show error toast on close, it might just be the connection closing
-        eventSource.close();
-      };
-
-      // Start the async job
+      eventSource.onerror = () => { eventSource.close(); };
       await api.post("/folders/generate");
     } catch (err) {
       toast.error("Organization failed: " + err.message);
@@ -185,7 +161,6 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
   const handleCreateFolder = async (e) => {
     e.preventDefault();
     if (!newFolderName.trim()) return;
-
     try {
       setIsCreatingFolder(true);
       const res = await api.post("/folders", { name: newFolderName.trim() });
@@ -215,11 +190,8 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
 
   const toggleSelect = (noteId) => {
     setSelectedNotes((prev) => {
-      if (prev.includes(noteId)) {
-        return prev.filter((id) => id !== noteId);
-      } else if (prev.length < 2) {
-        return [...prev, noteId];
-      }
+      if (prev.includes(noteId)) return prev.filter((id) => id !== noteId);
+      else if (prev.length < 2) return [...prev, noteId];
       return [prev[1], noteId];
     });
     setExplanation(null);
@@ -259,9 +231,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
     setIsLinking(false);
   };
 
-  const handleRejectLink = () => {
-    setExplanation(null);
-  };
+  const handleRejectLink = () => { setExplanation(null); };
 
   const handleDirectLink = async () => {
     if (selectedNotes.length !== 2) return;
@@ -290,21 +260,13 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
 
   const toggleFolder = (folderId) => {
     setExpandedFolders((prev) =>
-      prev.includes(folderId)
-        ? prev.filter((id) => id !== folderId)
-        : [...prev, folderId],
+      prev.includes(folderId) ? prev.filter((id) => id !== folderId) : [...prev, folderId],
     );
   };
 
-  // Helper to trigger navigation with current state
   const selectNote = (noteId) => {
     const currentState = {
-      viewMode,
-      expandedFolders,
-      notes, // Keep notes so we don't have to refetch or lose scrolling? (though App refetches)
-      askQuery,
-      askResults,
-      searchQuery,
+      viewMode, expandedFolders, notes, askQuery, askResults, searchQuery,
     };
     onSelectView("note", noteId, currentState);
   };
@@ -318,12 +280,14 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
             justifyContent: "space-between",
             alignItems: "center",
             flexWrap: "wrap",
-            gap: "1rem",
+            gap: "0.75rem",
           }}
         >
           <div>
-            <h2>🧠 Notes Explorer</h2>
-            <p className="text-secondary">
+            <h2 style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "var(--font-size-lg)" }}>
+              <Brain size={18} style={{ color: "var(--primary)" }} /> Notes Explorer
+            </h2>
+            <p className="text-secondary" style={{ fontSize: "var(--font-size-xs)", marginTop: "0.25rem" }}>
               {viewMode === "folders"
                 ? "AI Organized Folders"
                 : viewMode === "ask"
@@ -331,61 +295,49 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
                   : `All Atomic Notes (${notes.length} of ${totalNotes})`}
             </p>
           </div>
-          <div style={{ display: "flex", gap: "10px" }}>
-            {/* View Toggles */}
-
+          <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
             {viewMode === "ask" && (
               <button
-                onClick={() => {
-                  setViewMode("all");
-                  setAskResults([]);
-                  setAskQuery("");
-                }}
+                onClick={() => { setViewMode("all"); setAskResults([]); setAskQuery(""); }}
                 className="btn-ghost"
               >
-                <ArrowLeft size={16} /> Back to All
+                <ArrowLeft size={14} /> Back
               </button>
             )}
-
             <button
               onClick={() => setViewMode("all")}
               className={viewMode === "all" ? "btn-primary" : "btn-ghost"}
             >
-              <Grid size={16} /> All
+              <Grid size={14} /> All
             </button>
             <button
               onClick={() => setViewMode("folders")}
               className={viewMode === "folders" ? "btn-primary" : "btn-ghost"}
             >
-              <Layers size={16} /> Folders
+              <Layers size={14} /> Folders
             </button>
-
             <button
               onClick={handleAutoOrganize}
               disabled={isOrganizing}
               className="btn-secondary"
             >
-              <FolderPlus size={16} />{" "}
+              <FolderPlus size={14} />{" "}
               {isOrganizing
                 ? organizationProgress
-                  ? `Processing ${organizationProgress.current}/${organizationProgress.total}...`
+                  ? `${organizationProgress.current}/${organizationProgress.total}`
                   : "Organizing..."
                 : "Auto Organize"}
             </button>
-
             <button
               onClick={() => setViewMode("ask")}
               className={viewMode === "ask" ? "btn-primary" : "btn-ghost"}
               style={
                 viewMode === "ask"
-                  ? {
-                      background: "var(--accent-color)",
-                      borderColor: "transparent",
-                    }
+                  ? { background: "var(--accent)", borderColor: "transparent" }
                   : {}
               }
             >
-              <Sparkles size={16} /> Ask AI
+              <Sparkles size={14} /> Ask AI
             </button>
           </div>
         </div>
@@ -395,60 +347,68 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
       {selectedNotes.length === 2 && (
         <div
           className="card"
-          style={{ background: "var(--primary-color)", marginBottom: "1rem" }}
+          style={{ background: "var(--primary-light)", border: "1px solid rgba(139, 92, 246, 0.2)" }}
         >
           <div
             style={{
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
+              flexWrap: "wrap",
+              gap: "0.5rem",
             }}
           >
-            <span>
+            <span style={{ fontSize: "var(--font-size-sm)" }}>
               <strong>Selected:</strong>{" "}
               {notes.find((n) => n.id === selectedNotes[0])?.title} ↔{" "}
               {notes.find((n) => n.id === selectedNotes[1])?.title}
             </span>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div style={{ display: "flex", gap: "0.35rem" }}>
               <button
                 onClick={handleExplainLink}
                 disabled={isExplaining}
-                style={{ background: "white", color: "#000" }}
+                className="btn-secondary"
               >
-                {isExplaining ? "Analyzing..." : "🤖 AI Explain"}
+                <Sparkles size={12} />
+                {isExplaining ? "Analyzing..." : "AI Explain"}
               </button>
               <button
                 onClick={handleDirectLink}
                 disabled={isLinking}
-                style={{ background: "#10b981", color: "white" }}
+                className="btn-primary"
+                style={{ background: "var(--success)" }}
               >
-                {isLinking ? "Linking..." : "🔗 Link Directly"}
+                <Link size={12} />
+                {isLinking ? "Linking..." : "Link Directly"}
               </button>
             </div>
           </div>
           {explanation && (
             <div
               style={{
-                marginTop: "1rem",
-                padding: "1rem",
-                background: "rgba(255,255,255,0.1)",
-                borderRadius: "8px",
+                marginTop: "0.75rem",
+                padding: "0.75rem",
+                background: "rgba(255,255,255,0.04)",
+                borderRadius: "var(--border-radius-sm)",
+                border: "1px solid var(--border-color)",
               }}
             >
-              <p style={{ marginBottom: "1rem" }}>{explanation}</p>
-              <div style={{ display: "flex", gap: "1rem" }}>
+              <p style={{ marginBottom: "0.75rem", fontSize: "var(--font-size-sm)" }}>{explanation}</p>
+              <div style={{ display: "flex", gap: "0.5rem" }}>
                 <button
                   onClick={handleConfirmLink}
                   disabled={isLinking}
-                  style={{ background: "#22c55e" }}
+                  className="btn-primary"
+                  style={{ background: "var(--success)" }}
                 >
-                  {isLinking ? "Saving..." : "✓ Confirm Link"}
+                  {isLinking ? "Saving..." : "Confirm Link"}
                 </button>
                 <button
                   onClick={handleRejectLink}
-                  style={{ background: "#ef4444" }}
+                  className="btn-ghost"
+                  style={{ color: "var(--error)" }}
                 >
-                  ✗ Reject
+                  Reject
                 </button>
               </div>
             </div>
@@ -457,101 +417,63 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
       )}
 
       {/* CONTENT AREA */}
-
       {viewMode === "folders" ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {folders.length === 0 && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "2rem",
-                opacity: 0.6,
-              }}
-            >
-              No folders yet. Click 'Auto Organize' to group your notes.
+            <div style={{ textAlign: "center", padding: "2rem", opacity: 0.5, fontSize: "var(--font-size-sm)" }}>
+              No folders yet. Click &apos;Auto Organize&apos; to group your notes.
             </div>
           )}
           {folders.map((folder, i) => {
-            const isExpanded = expandedFolders.includes(folder.id || i); // fallback to index if id missing, but backend should provide id
-            const folderId = folder.id || i; // Assuming folder object has id, else using index logic which might be flaky if list changes
-
-            // Get notes for this folder
-            const folderNotes = notes.filter((n) =>
-              folder.noteIds?.includes(n.id),
-            );
-
+            const isExpanded = expandedFolders.includes(folder.id || i);
+            const folderId = folder.id || i;
+            const folderNotes = notes.filter((n) => folder.noteIds?.includes(n.id));
             return (
               <div key={folderId} className="card" style={{ padding: "0" }}>
                 <div
                   onClick={() => toggleFolder(folderId)}
-                  className="folder-header"
                   style={{
-                    padding: "1.5rem",
+                    padding: "1rem 1.25rem",
                     cursor: "pointer",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "space-between",
-                    background: isExpanded
-                      ? "var(--bg-surface-2)"
-                      : "transparent",
-                    transition: "var(--transition)",
-                    borderBottom: isExpanded
-                      ? "1px solid var(--border-color)"
-                      : "none",
+                    background: isExpanded ? "var(--bg-surface-2)" : "transparent",
+                    transition: "var(--transition-fast)",
+                    borderBottom: isExpanded ? "1px solid var(--border-color)" : "none",
                   }}
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "1rem",
-                    }}
-                  >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                     {isExpanded ? (
-                      <FolderOpen className="text-primary" size={24} />
+                      <FolderOpen style={{ color: "var(--primary)" }} size={18} />
                     ) : (
-                      <Folder className="text-secondary" size={24} />
+                      <Folder style={{ color: "var(--text-tertiary)" }} size={18} />
                     )}
                     <div>
-                      <h3 style={{ margin: 0, fontSize: "1.1rem" }}>
+                      <h3 style={{ margin: 0, fontSize: "var(--font-size-base)", fontWeight: "500" }}>
                         {folder.name}
                       </h3>
-                      <p
-                        className="text-secondary"
-                        style={{ margin: 0, fontSize: "0.85rem" }}
-                      >
+                      <p className="text-secondary" style={{ margin: 0, fontSize: "var(--font-size-xs)" }}>
                         {folder.noteIds?.length || 0} items
                       </p>
                     </div>
                   </div>
-                  <div style={{ opacity: 0.6 }}>
-                    {isExpanded ? (
-                      <ChevronDown size={20} />
-                    ) : (
-                      <ChevronRight size={20} />
-                    )}
+                  <div style={{ opacity: 0.4 }}>
+                    {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                   </div>
                 </div>
-
                 {isExpanded && (
-                  <div
-                    style={{
-                      padding: "1.5rem",
-                      borderTop: "1px solid var(--border-color)",
-                      background: "var(--bg-surface-1)",
-                    }}
-                  >
+                  <div style={{ padding: "1rem", background: "rgba(0,0,0,0.1)" }}>
                     {folderNotes.length === 0 ? (
-                      <p className="text-secondary">
+                      <p className="text-secondary" style={{ fontSize: "var(--font-size-sm)" }}>
                         Loading notes or empty folder...
                       </p>
                     ) : (
                       <div
                         style={{
                           display: "grid",
-                          gridTemplateColumns:
-                            "repeat(auto-fill, minmax(300px, 1fr))",
-                          gap: "1rem",
+                          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+                          gap: "0.75rem",
                         }}
                       >
                         {folderNotes.map((note) => {
@@ -562,28 +484,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
                               key={note.id}
                               note={note}
                               isSelected={isSelected}
-                              onSelect={() => {
-                                // If selecting for link, toggle select
-                                // If just clicking, maybe we want to navigate?
-                                // Current behavior in 'all' view is generic select.
-                                // But user wants "click on notes its going to full note page"
-                                // NoteCard usually handles onSelect for selection, but we want navigation?
-                                // In NoteCard, the whole card has onClick={onSelect}.
-                                // In 'all' view logic: onSelect={() => toggleSelect(note.id)}
-                                // So it just selects.
-                                // To navigate, we need a separate interaction or change NoteCard behavior.
-                                // Wait, the user said "when we click on the notes its going to the full note page".
-                                // So I should probably make the card clickable for navigation, and add a specific 'select' interaction?
-                                // OR, just adhere to current App behavior where NoteCard in 'All' view toggles select.
-                                // BUT, NoteCard in GraphView navigates.
-                                // Let's implement navigation on click for the card text/header, and selection on a checkbox or specific area?
-                                // OR: Just keep selection logic, but add a Button "Open" inside NoteCard?
-                                // Actually, the user's request implies they *are* navigating.
-                                // Let's assume they added navigation logic or expect it.
-                                // I will add an "Open" button or make the title clickable for navigation.
-                                // Let's make the Title clickable for navigation.
-                                selectNote(note.id);
-                              }}
+                              onSelect={() => selectNote(note.id)}
                               onUpdate={handleUpdateNote}
                               onDeleteNote={handleDeleteNote}
                               linkedCount={linkedIds.length}
@@ -600,11 +501,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
         </div>
       ) : viewMode === "ask" ? (
         <>
-          <form
-            onSubmit={handleAsk}
-            className="input-group"
-            style={{ marginBottom: "1.5rem" }}
-          >
+          <form onSubmit={handleAsk} className="input-group" style={{ marginBottom: "1rem" }}>
             <input
               type="text"
               placeholder="Ask a question about your notes..."
@@ -612,33 +509,20 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
               onChange={(e) => setAskQuery(e.target.value)}
               style={{ flex: 1 }}
             />
-            <button
-              type="submit"
-              disabled={isAsking}
-              className="btn-primary"
-              style={{ background: "var(--accent-color)" }}
-            >
-              <Sparkles size={16} /> {isAsking ? "Thinking..." : "Ask"}
+            <button type="submit" disabled={isAsking} className="btn-primary" style={{ background: "var(--accent)" }}>
+              <Sparkles size={14} /> {isAsking ? "Thinking..." : "Ask"}
             </button>
           </form>
-
           {askResults.length === 0 && !isAsking && askQuery && (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "2rem",
-                opacity: 0.6,
-              }}
-            >
+            <div style={{ textAlign: "center", padding: "2rem", opacity: 0.5, fontSize: "var(--font-size-sm)" }}>
               No relevant notes found. Try a different question.
             </div>
           )}
-
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-              gap: "1rem",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: "0.75rem",
             }}
           >
             {askResults.map((note) => {
@@ -649,17 +533,12 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
                   {note.score && (
                     <div
                       style={{
-                        position: "absolute",
-                        top: "-10px",
-                        right: "10px",
-                        background: "var(--accent-color)",
-                        fontSize: "0.7rem",
-                        padding: "2px 8px",
-                        borderRadius: "12px",
-                        zIndex: 10,
+                        position: "absolute", top: "-8px", right: "10px",
+                        background: "var(--accent)", fontSize: "0.6rem", fontWeight: "600",
+                        padding: "1px 7px", borderRadius: "var(--border-radius-pill)", zIndex: 10, color: "#fff",
                       }}
                     >
-                      Match: {Math.round(note.score * 100)}%
+                      {Math.round(note.score * 100)}%
                     </div>
                   )}
                   <NoteCard
@@ -677,13 +556,8 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
         </>
       ) : (
         <>
-          {/* Search Bar for Notes (only in 'all' view) */}
           {viewMode === "all" && (
-            <form
-              onSubmit={handleSearch}
-              className="input-group"
-              style={{ marginBottom: "1.5rem" }}
-            >
+            <form onSubmit={handleSearch} className="input-group" style={{ marginBottom: "1rem" }}>
               <input
                 type="text"
                 placeholder="Search notes..."
@@ -691,35 +565,23 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{ flex: 1 }}
               />
-              <button
-                type="submit"
-                disabled={isLoadingNotes}
-                className="btn-secondary"
-              >
-                <Search size={16} /> Search
+              <button type="submit" disabled={isLoadingNotes} className="btn-secondary">
+                <Search size={14} /> Search
               </button>
             </form>
           )}
-
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
-              gap: "1rem",
+              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+              gap: "0.75rem",
             }}
           >
             {notes.length === 0 && !isLoadingNotes && (
               <div
-                style={{
-                  gridColumn: "1/-1",
-                  textAlign: "center",
-                  padding: "2rem",
-                  opacity: 0.6,
-                }}
+                style={{ gridColumn: "1/-1", textAlign: "center", padding: "2rem", opacity: 0.5, fontSize: "var(--font-size-sm)" }}
               >
-                {searchQuery
-                  ? "No notes match your search."
-                  : "No notes found."}
+                {searchQuery ? "No notes match your search." : "No notes found."}
               </div>
             )}
             {notes.map((note) => {
@@ -738,20 +600,11 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
               );
             })}
           </div>
-
-          {/* Load More Button */}
           {viewMode === "all" && hasMore && (
-            <div style={{ textAlign: "center", marginTop: "1.5rem" }}>
-              <button
-                onClick={loadMoreNotes}
-                disabled={isLoadingNotes}
-                className="btn-primary"
-                style={{ minWidth: "200px" }}
-              >
+            <div style={{ textAlign: "center", marginTop: "1rem" }}>
+              <button onClick={loadMoreNotes} disabled={isLoadingNotes} className="btn-secondary" style={{ minWidth: "180px" }}>
                 {isLoadingNotes ? (
-                  <>
-                    <Loader2 size={16} className="spin" /> Loading...
-                  </>
+                  <><Loader2 size={14} className="spin" /> Loading...</>
                 ) : (
                   `Load More (${totalNotes - notes.length} remaining)`
                 )}

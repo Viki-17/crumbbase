@@ -2,37 +2,45 @@
 
 :root {
   /* Palette - Slate Dark Theme */
-  --bg-base: #0f172a; /* Slate 950 - Main Background */
-  --bg-surface-1: #1e293b; /* Slate 800 - Cards/Sidebar */
-  --bg-surface-2: #334155; /* Slate 700 - Hover/Input */
-  --bg-surface-3: #475569; /* Slate 600 - Active/Highlight */
+  --bg-base: #0b1120; /* Deeper dark base */
+  --bg-surface-1: #151d2e; /* Cards/Sidebar */
+  --bg-surface-2: #1e293b; /* Hover/Input */
+  --bg-surface-3: #334155; /* Active/Highlight */
 
   /* Text Colors */
-  --text-primary: #f8fafc; /* Slate 50 */
-  --text-secondary: #cbd5e1; /* Slate 300 */
-  --text-tertiary: #94a3b8; /* Slate 400 */
-  --text-inverse: #0f172a; /* Slate 950 */
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-inverse: #0f172a;
 
   /* Brand Colors */
-  --primary: #8b5cf6; /* Violet 500 */
-  --primary-hover: #7c3aed; /* Violet 600 */
-  --primary-light: rgba(139, 92, 246, 0.15);
+  --primary: #8b5cf6;
+  --primary-hover: #7c3aed;
+  --primary-light: rgba(139, 92, 246, 0.12);
+  --primary-glow: rgba(139, 92, 246, 0.25);
 
-  --accent: #38bdf8; /* Sky 400 */
+  --accent: #38bdf8;
+  --accent-light: rgba(56, 189, 248, 0.12);
 
   /* Status Colors */
-  --success: #10b981; /* Emerald 500 */
-  --success-bg: rgba(16, 185, 129, 0.15);
+  --success: #10b981;
+  --success-bg: rgba(16, 185, 129, 0.12);
 
-  --warning: #f59e0b; /* Amber 500 */
-  --warning-bg: rgba(245, 158, 11, 0.15);
+  --warning: #f59e0b;
+  --warning-bg: rgba(245, 158, 11, 0.12);
 
-  --error: #ef4444; /* Red 500 */
-  --error-bg: rgba(239, 68, 68, 0.15);
+  --error: #ef4444;
+  --error-bg: rgba(239, 68, 68, 0.12);
 
   /* Borders & Dividers */
-  --border-color: rgba(148, 163, 184, 0.1);
-  --border-hover: rgba(148, 163, 184, 0.2);
+  --border-color: rgba(148, 163, 184, 0.08);
+  --border-hover: rgba(148, 163, 184, 0.16);
+  --border-focus: rgba(139, 92, 246, 0.5);
+
+  /* Glass Morphism */
+  --glass-bg: rgba(15, 23, 42, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-blur: blur(16px);
 
   /* Spacing */
   --space-xs: 0.25rem;
@@ -45,10 +53,11 @@
   /* Layout */
   --sidebar-width: 260px;
   --context-panel-width: 320px;
-  --header-height: 64px;
+  --header-height: 56px;
   --border-radius-sm: 8px;
-  --border-radius: 16px; /* Modern Rounded */
-  --border-radius-lg: 24px;
+  --border-radius: 12px;
+  --border-radius-lg: 20px;
+  --border-radius-pill: 9999px;
 
   /* Typography */
   --font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -57,25 +66,29 @@
   --font-mono: "JetBrains Mono", "Fira Code", monospace;
 
   --font-size-xs: 0.75rem;
-  --font-size-sm: 0.875rem;
-  --font-size-base: 1rem;
+  --font-size-sm: 0.8125rem;
+  --font-size-base: 0.9375rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: 1.5rem;
   --font-size-2xl: 2rem;
 
+  --line-height-tight: 1.3;
   --line-height-normal: 1.5;
   --line-height-relaxed: 1.7;
 
-  /* Shadows (Soft Dark Mode Shadows) */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.3);
+  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.15);
 
   /* Transitions */
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Global Compatibility Variables (Mapping old names to new tokens) */
+/* Global Compatibility Variables */
 :root {
   --main-bg: var(--bg-base);
   --sidebar-bg: var(--bg-surface-1);
@@ -98,20 +111,21 @@ body {
   color: var(--text-primary);
   line-height: var(--line-height-normal);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Modern Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-surface-2);
-  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.15);
+  border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--bg-surface-3);
+  background: rgba(148, 163, 184, 0.25);
 }

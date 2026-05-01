@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PanelRightOpen, Menu } from "lucide-react";
+import { PanelRightOpen, Menu, BookMarked } from "lucide-react";
 import Sidebar from "./Sidebar";
 import ContextPanel from "./ContextPanel";
 import "./../../styles/layout.css";
@@ -35,8 +35,9 @@ const Layout = ({
           className="mobile-menu-toggle"
           onClick={() => setMobileSidebarOpen(!mobileSidebarOpen)}
         >
-          <Menu size={20} />
+          <Menu size={18} />
         </button>
+        <BookMarked size={16} style={{ color: "var(--primary)", flexShrink: 0 }} />
         <span className="mobile-brand">CrumbBase</span>
       </div>
 
@@ -76,25 +77,28 @@ const Layout = ({
       ) : (
         <button
           onClick={() => setContextPanelVisible(true)}
+          className="btn-ghost"
           style={{
             position: "fixed",
-            right: "20px",
-            top: "20px",
+            right: "16px",
+            top: "16px",
             zIndex: 100,
             padding: "8px",
-            borderRadius: "50%",
-            width: "40px",
-            height: "40px",
+            borderRadius: "var(--border-radius-sm)",
+            width: "36px",
+            height: "36px",
+            minHeight: "36px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: "var(--card-bg)",
-            border: "1px solid var(--border-color)",
-            boxShadow: "var(--shadow-lg)",
+            background: "var(--glass-bg)",
+            backdropFilter: "var(--glass-blur)",
+            WebkitBackdropFilter: "blur(16px)",
+            border: "1px solid var(--glass-border)",
           }}
           title="Show Context Panel"
         >
-          <PanelRightOpen size={20} />
+          <PanelRightOpen size={16} />
         </button>
       )}
     </div>

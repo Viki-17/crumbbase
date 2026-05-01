@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import api from "../api";
-import { Trash2, Edit2, Check, X } from "lucide-react";
+import { Trash2, Pencil, Check, X, Link } from "lucide-react";
 
 const NoteCard = ({
   note,
@@ -54,44 +54,44 @@ const NoteCard = ({
     return (
       <div
         className="card note-card editing"
-        style={{ cursor: "default", border: "1px solid var(--primary-color)" }}
+        style={{ cursor: "default", border: "1px solid var(--primary)" }}
       >
         <input
           value={editedTitle}
           onChange={(e) => setEditedTitle(e.target.value)}
           placeholder="Title"
-          style={{ width: "100%", marginBottom: "0.75rem", fontWeight: "bold" }}
+          style={{ width: "100%", marginBottom: "0.6rem", fontWeight: "600" }}
         />
         <textarea
           value={editedContent}
           onChange={(e) => setEditedContent(e.target.value)}
           placeholder="Content"
-          rows={6}
-          style={{ width: "100%", marginBottom: "0.75rem", resize: "vertical" }}
+          rows={5}
+          style={{ width: "100%", marginBottom: "0.6rem", resize: "vertical" }}
         />
         <input
           value={editedTags}
           onChange={(e) => setEditedTags(e.target.value)}
           placeholder="Tags (comma separated)"
-          style={{ width: "100%", marginBottom: "1rem" }}
+          style={{ width: "100%", marginBottom: "0.75rem" }}
         />
         <div
-          style={{ display: "flex", gap: "0.5rem", justifyContent: "flex-end" }}
+          style={{ display: "flex", gap: "0.4rem", justifyContent: "flex-end" }}
         >
           <button
             onClick={handleSave}
             disabled={isSaving}
             className="btn-primary"
-            style={{ fontSize: "0.8rem", padding: "4px 8px" }}
+            style={{ fontSize: "var(--font-size-xs)", padding: "4px 10px" }}
           >
-            <Check size={14} /> {isSaving ? "Saving..." : "Save"}
+            <Check size={12} /> {isSaving ? "Saving..." : "Save"}
           </button>
           <button
             onClick={handleCancel}
             className="btn-ghost"
-            style={{ fontSize: "0.8rem", padding: "4px 8px" }}
+            style={{ fontSize: "var(--font-size-xs)", padding: "4px 10px" }}
           >
-            <X size={14} /> Cancel
+            <X size={12} /> Cancel
           </button>
         </div>
       </div>
@@ -106,10 +106,10 @@ const NoteCard = ({
         cursor: "pointer",
         position: "relative",
         border: isSelected
-          ? "2px solid var(--accent-color)"
+          ? "1px solid var(--primary)"
           : "1px solid var(--border-color)",
-        background: isSelected ? "rgba(99, 102, 241, 0.05)" : "var(--card-bg)",
-        transition: "all 0.2s ease",
+        background: isSelected ? "var(--primary-light)" : "var(--bg-surface-1)",
+        transition: "var(--transition-fast)",
       }}
     >
       <div
@@ -117,14 +117,16 @@ const NoteCard = ({
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
-          marginBottom: "0.5rem",
+          marginBottom: "0.4rem",
         }}
       >
         <h4
           style={{
             margin: 0,
-            color: "var(--accent-color)",
-            paddingRight: "60px",
+            color: "var(--text-primary)",
+            paddingRight: "50px",
+            fontSize: "var(--font-size-sm)",
+            fontWeight: "500",
           }}
         >
           {note.title}
@@ -133,11 +135,13 @@ const NoteCard = ({
         <div
           style={{
             position: "absolute",
-            top: "0.5rem",
-            right: "0.5rem",
+            top: "0.6rem",
+            right: "0.6rem",
             display: "flex",
-            gap: "0.25rem",
+            gap: "2px",
+            opacity: 0.4,
           }}
+          className="note-card-actions"
         >
           <button
             onClick={(e) => {
@@ -145,31 +149,32 @@ const NoteCard = ({
               if (typeof onDeleteNote === "function") onDeleteNote(note.id);
             }}
             className="btn-ghost btn-icon"
-            style={{ color: "var(--error)", padding: "4px" }}
+            style={{ color: "var(--error)", padding: "3px", width: "24px", height: "24px", minHeight: "24px" }}
             title="Delete Note"
           >
-            <Trash2 size={14} />
+            <Trash2 size={12} />
           </button>
           <button
             onClick={toggleEdit}
             className="btn-ghost btn-icon"
-            style={{ padding: "4px" }}
+            style={{ padding: "3px", width: "24px", height: "24px", minHeight: "24px" }}
             title="Edit Note"
           >
-            <Edit2 size={14} />
+            <Pencil size={12} />
           </button>
         </div>
       </div>
 
       <p
         style={{
-          fontSize: "0.9rem",
-          opacity: 0.9,
-          marginBottom: "0.75rem",
+          fontSize: "var(--font-size-xs)",
+          color: "var(--text-secondary)",
+          marginBottom: "0.6rem",
           overflow: "hidden",
           display: "-webkit-box",
-          AppkitBoxOrient: "vertical",
-          WebkitLineClamp: 4,
+          WebkitBoxOrient: "vertical",
+          WebkitLineClamp: 3,
+          lineHeight: "1.5",
         }}
       >
         {note.content}
@@ -179,9 +184,8 @@ const NoteCard = ({
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: "0.5rem",
-          fontSize: "0.8rem",
-          opacity: 0.7,
+          gap: "0.35rem",
+          alignItems: "center",
         }}
       >
         {note.tags?.map((t) => (
@@ -189,22 +193,36 @@ const NoteCard = ({
             key={t}
             className="note-tag"
             style={{
-              background: "var(--bg-surface-3)",
-              padding: "2px 6px",
-              borderRadius: "4px",
+              background: "var(--bg-surface-2)",
+              padding: "1px 6px",
+              borderRadius: "var(--border-radius-pill)",
+              fontSize: "0.65rem",
+              color: "var(--text-tertiary)",
             }}
           >
             #{t}
           </span>
         ))}
         {linkedCount > 0 && (
-          <span style={{ color: "var(--primary-color)", fontWeight: "bold" }}>
-            🔗 {linkedCount}
+          <span style={{
+            color: "var(--primary)",
+            fontWeight: "500",
+            fontSize: "0.65rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "2px",
+          }}>
+            <Link size={10} /> {linkedCount}
           </span>
         )}
       </div>
     </div>
   );
 };
+
+// Show actions on hover
+const style = document.createElement('style');
+style.textContent = `.note-card:hover .note-card-actions { opacity: 1 !important; }`;
+document.head.appendChild(style);
 
 export default NoteCard;

@@ -1,9 +1,9 @@
 import React, { useState } from "react";
 import api from "../api";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, BookOpen, Sparkles, Youtube, PenLine, File } from "lucide-react";
 
 const BookInput = ({ onBookAdded }) => {
-  const [mode, setMode] = useState("pdf"); // 'pdf' or 'transcript'
+  const [mode, setMode] = useState("pdf");
   const [file, setFile] = useState(null);
   const [transcript, setTranscript] = useState("");
   const [title, setTitle] = useState("");
@@ -68,7 +68,6 @@ const BookInput = ({ onBookAdded }) => {
 
       onBookAdded(response.data.id);
 
-      // Reset
       setFile(null);
       setTranscript("");
       setTitle("");
@@ -87,9 +86,9 @@ const BookInput = ({ onBookAdded }) => {
       <div
         className="flex-between"
         style={{
-          marginBottom: "1.5rem",
+          marginBottom: "1.25rem",
           justifyContent: "flex-start",
-          gap: "1rem",
+          gap: "0.5rem",
         }}
       >
         <button
@@ -97,66 +96,72 @@ const BookInput = ({ onBookAdded }) => {
           onClick={() => setMode("pdf")}
           className={mode === "pdf" ? "btn-primary" : "btn-ghost"}
         >
-          <Upload size={16} /> Upload PDF
+          <Upload size={14} /> Upload PDF
         </button>
         <button
           type="button"
           onClick={() => setMode("transcript")}
           className={mode === "transcript" ? "btn-primary" : "btn-ghost"}
         >
-          <FileText size={16} /> Paste Transcript
+          <FileText size={14} /> Paste Transcript
         </button>
       </div>
 
       <form onSubmit={handleSubmit} style={{ width: "100%" }}>
         {mode === "pdf" ? (
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
+            style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
           >
-            <p className="text-secondary">Select a PDF file (max 5MB).</p>
+            <p className="text-secondary" style={{ fontSize: "var(--font-size-sm)" }}>
+              Select a PDF file (max 5MB).
+            </p>
             <input
               id="pdf-upload"
               type="file"
               accept=".pdf"
               onChange={handleFileChange}
               style={{
-                padding: "2rem",
-                border: "2px dashed var(--border-color)",
+                padding: "1.5rem",
+                border: "1px dashed var(--border-hover)",
                 background: "var(--bg-surface-2)",
                 borderRadius: "var(--border-radius-sm)",
                 cursor: "pointer",
                 width: "100%",
                 textAlign: "center",
+                fontSize: "var(--font-size-sm)",
               }}
             />
 
             <div
-              className="card"
               style={{
                 background: "var(--bg-surface-2)",
-                padding: "1.25rem",
-                border: "none",
+                padding: "1rem",
+                borderRadius: "var(--border-radius-sm)",
+                border: "1px solid var(--border-color)",
                 width: "100%",
               }}
             >
               <p
                 style={{
-                  fontWeight: "600",
-                  marginBottom: "0.75rem",
+                  fontWeight: "500",
+                  marginBottom: "0.6rem",
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.4rem",
+                  fontSize: "var(--font-size-sm)",
                 }}
               >
-                <span>📚</span> Book Type
+                <BookOpen size={14} style={{ color: "var(--primary)", opacity: 0.7 }} /> Book Type
               </p>
-              <div style={{ display: "flex", gap: "2rem" }}>
+              <div style={{ display: "flex", gap: "1.5rem" }}>
                 <label
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.6rem",
+                    gap: "0.5rem",
                     cursor: "pointer",
+                    fontSize: "var(--font-size-sm)",
+                    color: "var(--text-secondary)",
                   }}
                 >
                   <input
@@ -167,14 +172,16 @@ const BookInput = ({ onBookAdded }) => {
                     onChange={(e) => setBookType(e.target.value)}
                     style={{ width: "auto" }}
                   />
-                  <span>📖 Non-Fiction</span>
+                  <span>Non-Fiction</span>
                 </label>
                 <label
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    gap: "0.6rem",
+                    gap: "0.5rem",
                     cursor: "pointer",
+                    fontSize: "var(--font-size-sm)",
+                    color: "var(--text-secondary)",
                   }}
                 >
                   <input
@@ -185,21 +192,23 @@ const BookInput = ({ onBookAdded }) => {
                     onChange={(e) => setBookType(e.target.value)}
                     style={{ width: "auto" }}
                   />
-                  <span>✨ Fiction</span>
+                  <Sparkles size={12} style={{ opacity: 0.6 }} />
+                  <span>Fiction</span>
                 </label>
               </div>
             </div>
           </div>
         ) : (
           <div
-            style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}
+            style={{ display: "flex", flexDirection: "column", gap: "1rem" }}
           >
             <div>
               <label
                 style={{
                   display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "600",
+                  marginBottom: "0.4rem",
+                  fontWeight: "500",
+                  fontSize: "var(--font-size-sm)",
                 }}
               >
                 Title
@@ -217,8 +226,9 @@ const BookInput = ({ onBookAdded }) => {
               <label
                 style={{
                   display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "600",
+                  marginBottom: "0.4rem",
+                  fontWeight: "500",
+                  fontSize: "var(--font-size-sm)",
                 }}
               >
                 Source Type
@@ -228,9 +238,9 @@ const BookInput = ({ onBookAdded }) => {
                 onChange={(e) => setSourceType(e.target.value)}
                 style={{ width: "100%" }}
               >
-                <option value="youtube">📺 YouTube</option>
-                <option value="blog">📝 Blog / Article</option>
-                <option value="other">📄 Other</option>
+                <option value="youtube">YouTube</option>
+                <option value="blog">Blog / Article</option>
+                <option value="other">Other</option>
               </select>
             </div>
 
@@ -238,8 +248,9 @@ const BookInput = ({ onBookAdded }) => {
               <label
                 style={{
                   display: "block",
-                  marginBottom: "0.5rem",
-                  fontWeight: "600",
+                  marginBottom: "0.4rem",
+                  fontWeight: "500",
+                  fontSize: "var(--font-size-sm)",
                 }}
               >
                 Transcript
@@ -251,7 +262,7 @@ const BookInput = ({ onBookAdded }) => {
                 rows={8}
                 style={{
                   resize: "vertical",
-                  minHeight: "150px",
+                  minHeight: "120px",
                   width: "100%",
                 }}
               />
@@ -261,7 +272,7 @@ const BookInput = ({ onBookAdded }) => {
 
         <div
           style={{
-            marginTop: "2rem",
+            marginTop: "1.5rem",
             display: "flex",
             justifyContent: "flex-end",
           }}
@@ -269,7 +280,7 @@ const BookInput = ({ onBookAdded }) => {
           <button
             type="submit"
             className="btn-primary"
-            style={{ padding: "0.75rem 2rem", fontSize: "1rem" }}
+            style={{ padding: "0.5rem 1.5rem" }}
             disabled={
               loading ||
               (mode === "pdf" && !file) ||
@@ -290,10 +301,11 @@ const BookInput = ({ onBookAdded }) => {
         <div
           style={{
             color: "var(--error)",
-            marginTop: "1rem",
-            padding: "0.5rem",
+            marginTop: "0.75rem",
+            padding: "0.5rem 0.75rem",
             background: "var(--error-bg)",
             borderRadius: "var(--border-radius-sm)",
+            fontSize: "var(--font-size-sm)",
           }}
         >
           {error}

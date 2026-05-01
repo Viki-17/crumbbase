@@ -104,6 +104,11 @@ async function handleOverview(bookId, chapterId) {
   const chapter = await getChapter(chapterId);
   if (!chapter) return;
 
+  if (chapter.overviewStatus === "completed") {
+    console.log(`[Worker] Overview already completed for ${chapterId}, skipping to prevent duplicate AI calls.`);
+    return;
+  }
+
   const book = await getBook(bookId);
   const bookType = book?.bookType || "nonfiction"; // Default for backward compat
   const sourceType = book?.sourceType || null; // YouTube, blog, or null
@@ -187,6 +192,11 @@ async function handleNotes(bookId, chapterId) {
 
   const chapter = await getChapter(chapterId);
   if (!chapter) return;
+
+  if (chapter.notesStatus === "completed") {
+    console.log(`[Worker] Notes already completed for ${chapterId}, skipping to prevent duplicate AI calls.`);
+    return;
+  }
 
   console.log(`[Worker] Generating Notes for ${chapterId}`);
 
