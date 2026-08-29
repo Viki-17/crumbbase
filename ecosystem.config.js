@@ -16,6 +16,7 @@ module.exports = {
     {
       name: "crumbbase-api",
       script: "./server/index.js",
+      cron_restart: "0 0 * * *",
       env: {
         NODE_ENV: "production",
         OPENCODE_SERVER_URL: "http://127.0.0.1:4096",

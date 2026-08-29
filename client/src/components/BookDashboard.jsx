@@ -368,9 +368,7 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
     (n) => n.source?.chapterId === selectedChapterId,
   );
 
-  if (!book) return <Loading message="Loading book details..." />;
-
-  const selectedChapter = book.chapters?.find(
+  const selectedChapter = book?.chapters?.find(
     (c) => c.id === selectedChapterId,
   );
   const summary = selectedChapter?.summary;
@@ -499,6 +497,8 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
     () => sanitizeMarkdown(rawOverviewContent),
     [rawOverviewContent],
   );
+
+  if (!book) return <Loading message="Loading book details..." />;
 
   // Helper to render Generate Button or Loading State
   const renderGenerateButton = (step, label) => {
