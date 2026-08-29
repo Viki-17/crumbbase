@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import api from "../api";
 import toast from "react-hot-toast";
 import {
@@ -33,7 +33,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
     initialState?.searchQuery || "",
   );
   const [askQuery, setAskQuery] = useState(initialState?.askQuery || "");
-  const [askResults, setAskResults] = useState(initialState?.askResults || []);
+  const [askResults, setAskResults] = useState(initialState?.askResults || null);
   const [isAsking, setIsAsking] = useState(false);
   const [selectedNotes, setSelectedNotes] = useState([]);
   const [explanation, setExplanation] = useState(null);
@@ -174,11 +174,13 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
     }
   };
 
-  const handleUpdateNote = (updatedNote) => {
-    setNotes(notes.map((n) => (n.id === updatedNote.id ? updatedNote : n)));
-  };
+  const handleUpdateNote = useCallback((updatedNote) => {
+    setNotes((prev) =>
+      prev.map((n) => (n.id === updatedNote.id ? updatedNote : n)),
+    );
+  }, []);
 
-  const handleDeleteNote = async (noteId) => {
+  const handleDeleteNote = useCallback(async (noteId) => {
     try {
       await api.delete(`/notes/${noteId}`);
       setNotes((prev) => prev.filter((n) => n.id !== noteId));
@@ -186,7 +188,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
     } catch (err) {
       toast.error("Failed to delete note: " + err.message);
     }
-  };
+  }, []);
 
   const toggleSelect = (noteId) => {
     setSelectedNotes((prev) => {
@@ -252,10 +254,19 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
     setIsLinking(false);
   };
 
+  // Build an adjacency map once per graph change instead of scanning all
+  // edges for every note on every render (was O(notes * edges)).
+  const linkedIdsByNote = useMemo(() => {
+    const map = {};
+    for (const e of graph.edges || []) {
+      (map[e.from] ||= []).push(e.to);
+      (map[e.to] ||= []).push(e.from);
+    }
+    return map;
+  }, [graph.edges]);
+
   const getLinkedNoteIds = (noteId) => {
-    return graph.edges
-      .filter((e) => e.from === noteId || e.to === noteId)
-      .map((e) => (e.from === noteId ? e.to : e.from));
+    return linkedIdsByNote[noteId] || [];
   };
 
   const toggleFolder = (folderId) => {
@@ -264,12 +275,20 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
     );
   };
 
-  const selectNote = (noteId) => {
-    const currentState = {
-      viewMode, expandedFolders, notes, askQuery, askResults, searchQuery,
-    };
-    onSelectView("note", noteId, currentState);
-  };
+  const selectNote = useCallback(
+    (noteId) => {
+      const currentState = {
+        viewMode,
+        expandedFolders,
+        notes,
+        askQuery,
+        askResults,
+        searchQuery,
+      };
+      onSelectView("note", noteId, currentState);
+    },
+    [viewMode, expandedFolders, notes, askQuery, askResults, searchQuery, onSelectView],
+  );
 
   return (
     <div className="container">
@@ -298,7 +317,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
           <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
             {viewMode === "ask" && (
               <button
-                onClick={() => { setViewMode("all"); setAskResults([]); setAskQuery(""); }}
+                onClick={() => { setViewMode("all"); setAskResults(null); setAskQuery(""); }}
                 className="btn-ghost"
               >
                 <ArrowLeft size={14} /> Back
@@ -484,7 +503,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
                               key={note.id}
                               note={note}
                               isSelected={isSelected}
-                              onSelect={() => selectNote(note.id)}
+                              onSelect={selectNote}
                               onUpdate={handleUpdateNote}
                               onDeleteNote={handleDeleteNote}
                               linkedCount={linkedIds.length}
@@ -513,46 +532,58 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
               <Sparkles size={14} /> {isAsking ? "Thinking..." : "Ask"}
             </button>
           </form>
-          {askResults.length === 0 && !isAsking && askQuery && (
-            <div style={{ textAlign: "center", padding: "2rem", opacity: 0.5, fontSize: "var(--font-size-sm)" }}>
-              No relevant notes found. Try a different question.
+          {isAsking && (
+            <div style={{ textAlign: "center", padding: "2rem", opacity: 0.6, fontSize: "var(--font-size-sm)" }}>
+              <Loader2 size={16} className="spin" style={{ marginRight: "0.5rem", verticalAlign: "middle" }} />
+              Thinking...
             </div>
           )}
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-              gap: "0.75rem",
-            }}
-          >
-            {askResults.map((note) => {
-              const isSelected = selectedNotes.includes(note.id);
-              const linkedIds = getLinkedNoteIds(note.id);
-              return (
-                <div key={note.id} style={{ position: "relative" }}>
-                  {note.score && (
-                    <div
-                      style={{
-                        position: "absolute", top: "-8px", right: "10px",
-                        background: "var(--accent)", fontSize: "0.6rem", fontWeight: "600",
-                        padding: "1px 7px", borderRadius: "var(--border-radius-pill)", zIndex: 10, color: "#fff",
-                      }}
-                    >
-                      {Math.round(note.score * 100)}%
-                    </div>
-                  )}
-                  <NoteCard
-                    note={note}
-                    isSelected={isSelected}
-                    onSelect={() => selectNote(note.id)}
-                    onUpdate={handleUpdateNote}
-                    onDeleteNote={handleDeleteNote}
-                    linkedCount={linkedIds.length}
-                  />
-                </div>
-              );
-            })}
-          </div>
+          {!isAsking && askResults?.answer && (
+            <div className="card" style={{ marginBottom: "1rem" }}>
+              <h3 style={{ marginTop: 0, display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "var(--font-size-base)" }}>
+                <Sparkles size={14} style={{ color: "var(--accent)" }} /> Answer
+              </h3>
+              <div
+                style={{
+                  whiteSpace: "pre-wrap",
+                  fontSize: "var(--font-size-sm)",
+                  lineHeight: "1.6",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                {askResults.answer}
+              </div>
+            </div>
+          )}
+          {!isAsking && askResults?.sources?.length > 0 && (
+            <div className="card" style={{ padding: "1rem" }}>
+              <h4 style={{ marginTop: 0, marginBottom: "0.5rem", fontSize: "var(--font-size-sm)", color: "var(--text-secondary)" }}>
+                Sources
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {askResults.sources.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => selectNote(s.id)}
+                    className="btn-ghost"
+                    style={{ justifyContent: "flex-start", textAlign: "left", gap: "0.5rem" }}
+                  >
+                    <span style={{ flex: 1, fontSize: "var(--font-size-sm)" }}>{s.title}</span>
+                    {s.score != null && (
+                      <span style={{ color: "var(--accent)", fontSize: "var(--font-size-xs)" }}>
+                        {Math.round(s.score * 100)}%
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {!isAsking && !askResults?.answer && askQuery && (
+            <div style={{ textAlign: "center", padding: "2rem", opacity: 0.5, fontSize: "var(--font-size-sm)" }}>
+              No answer yet. Ask a question above.
+            </div>
+          )}
         </>
       ) : (
         <>
@@ -592,7 +623,7 @@ const NotesExplorer = ({ onSelectView, initialState }) => {
                   key={note.id}
                   note={note}
                   isSelected={isSelected}
-                  onSelect={() => selectNote(note.id)}
+                  onSelect={selectNote}
                   onUpdate={handleUpdateNote}
                   onDeleteNote={handleDeleteNote}
                   linkedCount={linkedIds.length}

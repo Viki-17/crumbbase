@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import BookInput from "../BookInput";
 import { Search, Book, Youtube, PenTool, LayoutGrid, Clock, CheckCircle2 } from "lucide-react";
 import Loading from "../layout/Loading";
@@ -9,51 +9,56 @@ const HomeView = ({ books, loading, onSelectBook, onBookAdded }) => {
   const [activeGenre, setActiveGenre] = useState("all");
 
   // Filter Logic
-  const filteredBooks = books.filter((book) => {
-    const matchesSearch = book.title
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    if (!matchesSearch) return false;
+  const filteredBooks = useMemo(
+    () =>
+      books.filter((book) => {
+        const matchesSearch = book.title
+          .toLowerCase()
+          .includes(searchQuery.toLowerCase());
+        if (!matchesSearch) return false;
 
-    let matchesCategory = true;
-    if (activeCategory === "book") {
-      matchesCategory = !book.sourceType || book.sourceType === "pdf";
-    } else if (activeCategory === "youtube") {
-      matchesCategory = book.sourceType === "youtube";
-    } else if (activeCategory === "blog") {
-      matchesCategory = book.sourceType === "blog";
+        let matchesCategory = true;
+        if (activeCategory === "book") {
+          matchesCategory = !book.sourceType || book.sourceType === "pdf";
+        } else if (activeCategory === "youtube") {
+          matchesCategory = book.sourceType === "youtube";
+        } else if (activeCategory === "blog") {
+          matchesCategory = book.sourceType === "blog";
+        }
+        if (!matchesCategory) return false;
+
+        if (
+          activeCategory === "book" ||
+          (activeCategory === "all" &&
+            (!book.sourceType || book.sourceType === "pdf"))
+        ) {
+          if (activeGenre !== "all") {
+            if (book.bookType !== activeGenre) return false;
+          }
+        }
+        return true;
+      }),
+    [books, searchQuery, activeCategory, activeGenre],
+  );
+
+  // Compute category counts in a single pass instead of 4 separate filters
+  const categoryCounts = useMemo(() => {
+    let book = 0;
+    let youtube = 0;
+    let blog = 0;
+    for (const b of books) {
+      if (b.sourceType === "youtube") youtube++;
+      else if (b.sourceType === "blog") blog++;
+      else if (!b.sourceType || b.sourceType === "pdf") book++;
     }
-    if (!matchesCategory) return false;
-
-    if (
-      activeCategory === "book" ||
-      (activeCategory === "all" &&
-        (!book.sourceType || book.sourceType === "pdf"))
-    ) {
-      if (activeGenre !== "all") {
-        if (book.bookType !== activeGenre) return false;
-      }
-    }
-    return true;
-  });
-
-  const getCount = (category, genre = "all") => {
-    return books.filter((b) => {
-      let matchCat = true;
-      if (category === "book") matchCat = !b.sourceType || b.sourceType === "pdf";
-      else if (category === "youtube") matchCat = b.sourceType === "youtube";
-      else if (category === "blog") matchCat = b.sourceType === "blog";
-      if (!matchCat) return false;
-      if (category === "book" && genre !== "all") return b.bookType === genre;
-      return true;
-    }).length;
-  };
+    return { book, youtube, blog };
+  }, [books]);
 
   const categories = [
     { id: "all", label: "All", icon: LayoutGrid, count: books.length },
-    { id: "book", label: "Books", icon: Book, count: getCount("book") },
-    { id: "youtube", label: "YouTube", icon: Youtube, count: getCount("youtube") },
-    { id: "blog", label: "Articles", icon: PenTool, count: getCount("blog") },
+    { id: "book", label: "Books", icon: Book, count: categoryCounts.book },
+    { id: "youtube", label: "YouTube", icon: Youtube, count: categoryCounts.youtube },
+    { id: "blog", label: "Articles", icon: PenTool, count: categoryCounts.blog },
   ];
 
   const getSourceColor = (sourceType) => {

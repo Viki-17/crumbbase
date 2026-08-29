@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import api from "../../api";
 import {
   BookOpen,
@@ -55,6 +55,21 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
     setProcessingCount(processing);
   }, [books]);
 
+  // Memoize the repeated grouping passes over the books array
+  const groupedBooks = useMemo(() => {
+    const fiction = books.filter(
+      (b) =>
+        (!b.sourceType || b.sourceType === "pdf") && b.bookType === "fiction",
+    );
+    const nonfiction = books.filter(
+      (b) =>
+        (!b.sourceType || b.sourceType === "pdf") && b.bookType !== "fiction",
+    );
+    const youtube = books.filter((b) => b.sourceType === "youtube");
+    const blog = books.filter((b) => b.sourceType === "blog");
+    return { fiction, nonfiction, youtube, blog };
+  }, [books]);
+
   const fetchData = async () => {
     try {
       // Use pagination to get just the count, not all notes
@@ -105,18 +120,7 @@ const Sidebar = ({ onSelectView, selectedNote, selectedBook, books = [] }) => {
           <div className="sidebar-section-content">
             {/* Books Group */}
             {(() => {
-              const fiction = books.filter(
-                (b) =>
-                  (!b.sourceType || b.sourceType === "pdf") &&
-                  b.bookType === "fiction",
-              );
-              const nonfiction = books.filter(
-                (b) =>
-                  (!b.sourceType || b.sourceType === "pdf") &&
-                  b.bookType !== "fiction",
-              );
-              const youtube = books.filter((b) => b.sourceType === "youtube");
-              const blog = books.filter((b) => b.sourceType === "blog");
+              const { fiction, nonfiction, youtube, blog } = groupedBooks;
 
               const hasBooks = fiction.length > 0 || nonfiction.length > 0;
               const hasYoutube = youtube.length > 0;

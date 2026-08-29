@@ -100,7 +100,7 @@ const NoteCard = ({
 
   return (
     <div
-      onClick={onSelect}
+      onClick={() => onSelect(note.id)}
       className={`card note-card ${isSelected ? "selected" : ""}`}
       style={{
         cursor: "pointer",
@@ -220,9 +220,6 @@ const NoteCard = ({
   );
 };
 
-// Show actions on hover
-const style = document.createElement('style');
-style.textContent = `.note-card:hover .note-card-actions { opacity: 1 !important; }`;
-document.head.appendChild(style);
+// Show actions on hover (moved to styles.css; no runtime DOM side effects)
 
-export default NoteCard;
+export default React.memo(NoteCard);

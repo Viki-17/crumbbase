@@ -65,18 +65,22 @@ const GraphView = ({ onSelectNote, onBack }) => {
       return;
     }
 
+    // Build an adjacency index once (O(E)) instead of scanning all edges per
+    // node (was O(N * E)).
+    const degreeMap = {};
+    for (const e of rawGraph.edges || []) {
+      const from = String(e.from);
+      const to = String(e.to);
+      degreeMap[from] = (degreeMap[from] || 0) + 1;
+      degreeMap[to] = (degreeMap[to] || 0) + 1;
+    }
+
     // Build nodes from notes - Ensure IDs are strings
     const nodes = allNotes.map((note) => ({
       id: String(note.id),
       name: note.title,
       tags: note.tags || [],
-      val:
-        1 +
-        (rawGraph.edges?.filter(
-          (e) =>
-            String(e.from) === String(note.id) ||
-            String(e.to) === String(note.id),
-        ).length || 0),
+      val: 1 + (degreeMap[String(note.id)] || 0),
     }));
 
     // Filter edges based on filters

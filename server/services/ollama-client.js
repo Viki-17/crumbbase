@@ -6,7 +6,6 @@ const host = process.env.OLLAMA_HOST || "http://127.0.0.1:11434";
 console.log(`Initializing Ollama Client with host: ${host}`);
 
 // --- KEY FIX: Use undici (native compatible fetch) ---
-// node-fetch v2 returns Node streams which fail with "itr.getReader is not a function" in Ollama
 // Undici provides standard Web Streams required by the library.
 const { fetch, Agent } = require("undici");
 

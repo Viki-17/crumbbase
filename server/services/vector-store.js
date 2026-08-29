@@ -1,5 +1,5 @@
 const storage = require("./storage");
-const ollama = require("./ollama-client");
+const opencode = require("./opencode-client");
 const { Note } = require("../models"); // Direct access for vector search optimization
 
 // Simple cosine similarity
@@ -97,18 +97,11 @@ async function suggestLinks(newNote) {
     `;
 
   try {
-    const response = await ollama.chat({
-      model: "gemma3:4b", // Using users preferred model or default
-      messages: [{ role: "user", content: prompt }],
-      format: "json",
-      stream: false,
-    });
-
-    const suggestions = JSON.parse(response.message.content);
+    const suggestions = await opencode.generateJSON(prompt, "flash");
     // Normalize output
     let links = [];
     if (Array.isArray(suggestions)) links = suggestions;
-    else if (suggestions.links) links = suggestions.links;
+    else if (suggestions && suggestions.links) links = suggestions.links;
 
     // Map back to expected structure if needed, ensure noteId is present
     return links

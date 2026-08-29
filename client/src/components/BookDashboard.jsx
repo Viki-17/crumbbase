@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { ArrowLeft, Pencil, RefreshCw, Trash2, CheckCircle2, Clock, XCircle, Zap, SkipForward, BookOpen, Brain, BookText, Volume2, Pause, Loader2, X } from "lucide-react";
 import axios from "axios";
 import api from "../api";
@@ -493,7 +493,12 @@ const BookDashboard = ({ bookId, onDelete, onBack }) => {
       ? streamingOverviews[selectedChapterId]
       : summary?.overview || "";
 
-  const overviewContent = sanitizeMarkdown(rawOverviewContent);
+  // Memoize: only run the regex-heavy markdown sanitization when the
+  // underlying content actually changes (was running on every render).
+  const overviewContent = useMemo(
+    () => sanitizeMarkdown(rawOverviewContent),
+    [rawOverviewContent],
+  );
 
   // Helper to render Generate Button or Loading State
   const renderGenerateButton = (step, label) => {

@@ -1,102 +1,10 @@
-const ollama = require("./ollama-client");
+const opencode = require("./opencode-client");
 
-let openrouterInstance;
-async function getOpenRouter() {
-  if (!openrouterInstance) {
-    const { OpenRouter } = await import("@openrouter/sdk");
-    openrouterInstance = new OpenRouter({
-      apiKey: process.env.OPENROUTER_API_KEY,
-    });
-  }
-  return openrouterInstance;
-}
-
-// Reusable function for streaming AI generation with OpenRouter -> Ollama fallback
-async function generateStreamWithFallback(prompt, onToken) {
-  try {
-    console.log("[AI Service] Attempting generation with OpenRouter...");
-    const openrouter = await getOpenRouter();
-    const stream = await openrouter.chat.send({
-      chatRequest: {
-        model: "openai/gpt-oss-20b:free",
-        messages: [{ role: "user", content: prompt }],
-        stream: true,
-      },
-    });
-
-    let fullContent = "";
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        fullContent += content;
-        if (onToken) {
-          onToken(content);
-        }
-      }
-
-      if (chunk.usage) {
-        console.log("[AI Service] OpenRouter Reasoning tokens:", chunk.usage);
-      }
-    }
-
-    if (!fullContent) {
-      throw new Error("OpenRouter returned empty response");
-    }
-
-    return fullContent;
-  } catch (error) {
-    console.warn(
-      "[AI Service] OpenRouter generation failed, falling back to Ollama:",
-      error.message,
-    );
-
-    // Fallback to Ollama
-    const response = await ollama.chat({
-      model: "gemma3:4b",
-      messages: [{ role: "user", content: prompt }],
-      stream: true,
-    });
-
-    let fullContent = "";
-    for await (const part of response) {
-      const token = part.message.content;
-      fullContent += token;
-      if (onToken) {
-        onToken(token);
-      }
-    }
-    return fullContent;
-  }
-}
-
-// Helper to extract JSON from markdown code block
-function parseJSON(text) {
-  try {
-    // Try parsing directly
-    return JSON.parse(text);
-  } catch (e) {
-    // Try extracting from ```json ... ```
-    const match = text.match(/```json([\s\S]*?)```/);
-    if (match) {
-      try {
-        return JSON.parse(match[1]);
-      } catch (e2) {
-        console.error("Failed to parse extracted JSON", e2);
-      }
-    }
-    // Fallback: try finding first { and last }
-    const first = text.indexOf("{");
-    const last = text.lastIndexOf("}");
-    if (first !== -1 && last !== -1) {
-      try {
-        return JSON.parse(text.substring(first, last + 1));
-      } catch (e3) {
-        console.error("Failed to parse fuzzy JSON", e3);
-      }
-    }
-    return null;
-  }
-}
+// Reusable function for AI generation via the OpenCode server.
+// All prompts are routed through opencode-client which talks to a sidecar
+// `opencode serve` process using the opencode-go provider models:
+//   - "pro"   => opencode-go/deepseek-v4-pro (heavy: summaries, notes, analysis)
+//   - "flash" => opencode-go/deepseek-v4-flash (light: link explanation, ask AI)
 
 async function generateChapterOverview(
   chapterText,
@@ -201,7 +109,9 @@ async function generateChapterOverview(
   }
 
   try {
-    return await generateStreamWithFallback(prompt, onToken);
+    const fullText = await opencode.generate(prompt, "pro");
+    if (onToken) onToken(fullText);
+    return fullText;
   } catch (error) {
     console.error("AI Service Error (Overview):", error);
     throw error;
@@ -257,19 +167,12 @@ async function generateAtomicNotes(chapterOverview) {
     `;
 
   try {
-    const response = await ollama.chat({
-      model: "gemma3:4b",
-      messages: [{ role: "user", content: prompt }],
-      format: "json",
-      stream: false,
-    });
-
-    const parsed = JSON.parse(response.message.content);
+    const parsed = await opencode.generateJSON(prompt, "pro");
     if (Array.isArray(parsed)) {
       console.log(`[AI Service] Generated ${parsed.length} atomic notes`);
       return parsed;
     }
-    if (parsed.notes && Array.isArray(parsed.notes)) {
+    if (parsed && Array.isArray(parsed.notes)) {
       console.log(`[AI Service] Generated ${parsed.notes.length} atomic notes`);
       return parsed.notes;
     }
@@ -436,13 +339,11 @@ async function generateOverallAnalysis(
   }
 
   try {
-    const response = await ollama.chat({
-      model: "gemma3:4b",
-      messages: [{ role: "user", content: prompt }],
-      format: "json",
-      stream: false,
-    });
-    return JSON.parse(response.message.content);
+    const parsed = await opencode.generateJSON(prompt, "pro");
+    if (!parsed) {
+      throw new Error("Failed to parse book analysis JSON from model response");
+    }
+    return parsed;
   } catch (error) {
     console.error("AI Service Error (Analysis):", error);
     throw error;
@@ -471,12 +372,7 @@ ${JSON.stringify(noteB)}
   `;
 
   try {
-    const response = await ollama.chat({
-      model: "gemma3:4b",
-      messages: [{ role: "user", content: prompt }],
-      stream: false,
-    });
-    return response.message.content.trim();
+    return await opencode.generate(prompt, "flash");
   } catch (error) {
     console.error("AI Service Error (Link Explanation):", error);
     throw error;
@@ -504,10 +400,7 @@ async function generateFolderStructure(
       .map((f) => f.name)
       .filter((n) => n !== "Uncategorized");
 
-    // If for some reason names are empty (edge case), strictly fallback or just use what we have
     if (folderNames.length === 0) {
-      // Should rarely happen if length > 0, but maybe only "Uncategorized" exists?
-      // Fallback to generating new ones if truly empty
       console.log(
         "[AI Service] Existing folders were empty or only Uncategorized. Generating new taxonomy.",
       );
@@ -544,18 +437,11 @@ async function generateFolderStructure(
     `;
 
     try {
-      const response = await ollama.chat({
-        model: "gemma3:4b",
-        messages: [{ role: "user", content: taxonomyPrompt }],
-        format: "json",
-        stream: false,
-      });
-
+      const parsed = await opencode.generateJSON(taxonomyPrompt, "pro");
       // Handle potential object wrapper { "folders": [...] } or direct array
-      const parsed = JSON.parse(response.message.content);
       if (Array.isArray(parsed)) {
         folderNames = parsed;
-      } else if (parsed.folders && Array.isArray(parsed.folders)) {
+      } else if (parsed && Array.isArray(parsed.folders)) {
         folderNames = parsed.folders;
       } else {
         // Fallback
@@ -655,15 +541,8 @@ async function generateFolderStructure(
         console.log(
           `[AI Service] Batch ${batchNumber} attempt ${retryCount + 1}...`,
         );
-        const response = await ollama.chat({
-          model: "gemma3:4b",
-          messages: [{ role: "user", content: batchPrompt }],
-          format: "json",
-          stream: false,
-        });
-
-        const parsed = JSON.parse(response.message.content);
-        const assignments = parsed.assignments || [];
+        const parsed = await opencode.generateJSON(batchPrompt, "pro");
+        const assignments = parsed?.assignments || [];
 
         // Process assignments
         const batchIds = new Set(batch.map((n) => n.id));
@@ -723,10 +602,54 @@ async function generateFolderStructure(
   return result;
 }
 
+/**
+ * Answer a natural-language question using retrieved notes as context (RAG).
+ * Uses the "flash" model for fast, lightweight responses.
+ *
+ * @param {string} query - The user's question.
+ * @param {Array<{id:string,title:string,content:string,score?:number}>} sources - Retrieved notes.
+ * @returns {Promise<string>}
+ */
+async function answerQuestion(query, sources) {
+  const context = sources
+    .map(
+      (s, i) =>
+        `[${i + 1}] Title: ${s.title}\nContent: ${s.content}`,
+    )
+    .join("\n\n");
+
+  const prompt = `
+You are a knowledgeable assistant helping a user understand their personal notes.
+
+TASK:
+Answer the user's question using ONLY the notes provided below. Synthesize a clear, direct answer.
+
+RULES:
+- Base your answer strictly on the provided notes. Do not invent facts.
+- If the notes do not contain enough information to answer, say so honestly.
+- Write in a helpful, concise style. Use Markdown (bullet points where useful).
+- You may reference which notes you drew from (e.g., "Based on note 1 and 3").
+
+USER QUESTION:
+${query}
+
+NOTES:
+${context}
+  `;
+
+  try {
+    return await opencode.generate(prompt, "flash");
+  } catch (error) {
+    console.error("AI Service Error (Answer Question):", error);
+    throw error;
+  }
+}
+
 module.exports = {
   generateChapterOverview,
   generateAtomicNotes,
   generateOverallAnalysis,
   explainLinkRelationship,
   generateFolderStructure,
+  answerQuestion,
 };

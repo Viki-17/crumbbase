@@ -180,6 +180,11 @@ input::placeholder {
   box-shadow: 0 0 0 2px var(--primary-light);
 }
 
+/* Show note-card actions on hover */
+.note-card:hover .note-card-actions {
+  opacity: 1 !important;
+}
+
 .btn-small {
   padding: 0.35rem 0.7rem;
   font-size: var(--font-size-xs);

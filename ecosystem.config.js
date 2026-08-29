@@ -1,10 +1,24 @@
 module.exports = {
   apps: [
     {
+      // OpenCode AI server sidecar — the backend talks to this over HTTP
+      // (see server/services/opencode-client.js). Uses your opencode-go login
+      // from ~/.local/share/opencode/auth.json, so it must run as your user.
+      name: "crumbbase-opencode",
+      script: "opencode",
+      args: "serve --port 4096 --hostname 127.0.0.1",
+      env: {
+        NODE_ENV: "production",
+      },
+      error_file: "./logs/opencode-err.log",
+      out_file: "./logs/opencode-out.log",
+    },
+    {
       name: "crumbbase-api",
       script: "./server/index.js",
       env: {
         NODE_ENV: "production",
+        OPENCODE_SERVER_URL: "http://127.0.0.1:4096",
         // Add other env vars here
       },
       // Error handling

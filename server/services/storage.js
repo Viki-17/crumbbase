@@ -160,6 +160,13 @@ const getAllNotes = async () => {
   return await Note.find().lean();
 };
 
+// Lightweight note list for UI consumers — omits embedding vectors and
+// suggested links (the browser never reads them), keeping payloads small.
+const getAllNotesLite = async () => {
+  await ensureConnected();
+  return await Note.find().select("-embedding -suggestedLinks").lean();
+};
+
 const getNotesWithPagination = async (page = 1, limit = 20, search = "") => {
   await ensureConnected();
   const skip = (page - 1) * limit;
@@ -173,7 +180,11 @@ const getNotesWithPagination = async (page = 1, limit = 20, search = "") => {
     : {};
 
   const [notes, total] = await Promise.all([
-    Note.find(query).skip(skip).limit(limit).lean(),
+    Note.find(query)
+      .select("-embedding -suggestedLinks")
+      .skip(skip)
+      .limit(limit)
+      .lean(),
     Note.countDocuments(query),
   ]);
 
@@ -456,6 +467,7 @@ module.exports = {
   getNote,
   updateNote,
   getAllNotes,
+  getAllNotesLite,
   getNotesWithPagination,
   deleteNote,
   deleteNotesByChapter,

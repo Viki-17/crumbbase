@@ -39,7 +39,7 @@ const ContextPanel = ({ selectedNote, selectedBook, onClose, onNavigate }) => {
     if (!selectedNote?.id) return;
     try {
       setAnalyzing(true);
-      const res = await axios.post(`/notes/${selectedNote.id}/suggest-links`);
+      const res = await api.post(`/notes/${selectedNote.id}/suggest-links`);
       setSuggestions(res.data);
     } catch (err) {
       console.error("AI Suggestion failed", err);

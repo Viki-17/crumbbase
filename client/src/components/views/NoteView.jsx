@@ -128,7 +128,7 @@ const NoteView = ({ noteId, onNoteUpdated, onBack }) => {
       // For this view, we might need to fetch all notes to resolve names if not passed.
       // Let's do a quick lookup fetch since we don't have allNotes prop here.
 
-      const allNotesRes = await api.get("/notes"); // Optimizable
+      const allNotesRes = await api.get("/notes?all=true");
       const allNotes = allNotesRes.data;
 
       const enhancedSuggestions = res.data.map((s) => {
@@ -216,14 +216,11 @@ const NoteView = ({ noteId, onNoteUpdated, onBack }) => {
               <span>
                 From:{" "}
                 <span className="note-view-source-link">
-                  From:{" "}
-                  <span className="note-view-source-link">
-                    {sourceBook ? sourceBook.title : "Unknown Book"} /{" "}
-                    {sourceChapter
-                      ? sourceChapter.title ||
-                        `Ch. ${sourceChapter.chapterIndex}`
-                      : "Unknown Chapter"}
-                  </span>
+                  {sourceBook ? sourceBook.title : "Unknown Book"} /{" "}
+                  {sourceChapter
+                    ? sourceChapter.title ||
+                      `Ch. ${sourceChapter.chapterIndex}`
+                    : "Unknown Chapter"}
                 </span>
               </span>
             )}

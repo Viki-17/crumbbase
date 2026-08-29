@@ -134,6 +134,7 @@ function splitByFallback(text) {
   for (let i = 0; i < cleanText.length; i += chunkSize - overlap) {
     chunks.push(cleanText.substring(i, i + chunkSize));
   }
+  console.log("chuncks ----------- ", chunks);
   return chunks;
 }
 
@@ -154,7 +155,7 @@ function splitIntoChapters(input) {
     const validOutline = outline.filter((item) => item.page);
     if (validOutline.length > 0) {
       console.log(
-        `Splitting by Official Outline (${validOutline.length} chapters)`
+        `Splitting by Official Outline (${validOutline.length} chapters)`,
       );
       const chunks = splitByToC(text, validOutline);
       if (chunks) return chunks;

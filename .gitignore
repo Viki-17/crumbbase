@@ -139,10 +139,14 @@ vite.config.ts.timestamp-*
 
 # --- Project Specific ---
 
+# macOS
+.DS_Store
+
 # Uploads
 server/uploads/
 
 # Binaries and Models (TTS)
 server/piper/
+server/piper.tar.gz
 server/models/
 server/venv/

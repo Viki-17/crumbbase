@@ -146,7 +146,7 @@ router.get("/books/:id", async (req, res) => {
 router.get("/notes", async (req, res) => {
   try {
     if (req.query.all === "true") {
-      const notes = await storage.getAllNotes();
+      const notes = await storage.getAllNotesLite();
       return res.json(notes);
     }
 
@@ -161,7 +161,7 @@ router.get("/notes", async (req, res) => {
   }
 });
 
-// Natural Language Search for Notes
+// Natural Language Ask AI (RAG over notes, answered via deepseek-v4-flash)
 router.post("/notes/ask", async (req, res) => {
   try {
     const { query } = req.body;
@@ -171,18 +171,40 @@ router.post("/notes/ask", async (req, res) => {
     const queryEmbedding = await embeddingService.generateEmbedding(query);
 
     // 2. Find Similar Notes
-    const similarNotes = await vectorStore.findSimilar(queryEmbedding, 10); // Top 10
+    const similarNotes = await vectorStore.findSimilar(queryEmbedding, 8); // Top 8
 
     // 3. Hydrate with full content
-    const results = [];
+    const sources = [];
     for (const item of similarNotes) {
       const note = await storage.getNote(item.id);
       if (note) {
-        results.push({ ...note, score: item.score });
+        sources.push({
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          score: item.score,
+        });
       }
     }
 
-    res.json(results);
+    if (sources.length === 0) {
+      return res.json({
+        answer: "No relevant notes were found to answer this question.",
+        sources: [],
+      });
+    }
+
+    // 4. Synthesize an answer from the retrieved notes
+    const answer = await aiService.answerQuestion(query, sources);
+
+    res.json({
+      answer,
+      sources: sources.map((s) => ({
+        id: s.id,
+        title: s.title,
+        score: s.score,
+      })),
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -410,7 +432,6 @@ router.post("/chapters/:id/overview", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
 
 router.post("/chapters/:id/notes", async (req, res) => {
   try {
@@ -869,16 +890,17 @@ async function processBookWithChunks(bookId, textChunks) {
 
     book.chapters = chapterIds;
     await storage.saveBook(book);
+    console.log("book ======>", book);
     broadcast(bookId, { type: "bookUpdate", book });
 
     // Publish Initial Jobs (Overview) for all chapters
     for (const chapId of chapterIds) {
-      await rabbitmq.publishJob({
-        type: "overview",
-        bookId,
-        chapterId: chapId,
-        stage: "overview",
-      });
+      // await rabbitmq.publishJob({
+      //   type: "overview",
+      //   bookId,
+      //   chapterId: chapId,
+      //   stage: "overview",
+      // });
     }
 
     console.log(`Pipeline started for book: ${bookId}`);
