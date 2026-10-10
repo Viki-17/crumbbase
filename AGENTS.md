@@ -88,6 +88,13 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   setup/status + Settings; ingest logs name deno when that error hits.
   Re-run a stuck `awaiting_paste` source by enqueueing a fresh `ingest` job —
   no endpoint for it, use `enqueueJob({type:'ingest',sourceId})` directly.
+- Backup push uses its own deploy key: `~/.ssh/id_ed25519_crumbbase_backup`
+  via ssh alias `github.com-crumbbase-backup` (`.env` `GITHUB_BACKUP_REPO`
+  uses that host). The server's default key belongs to another repo and gets
+  `Permission ... denied to deploy key`. Add the `crumbbase-backup-deploy`
+  pubkey to the backup repo with write access. If push is rejected with
+  `fetch first` (diverged histories), merge in `./data` (manifest conflicts:
+  keep local — it matches `pages/` on disk) and push.
 
 ## Sessions
 - Oct 2026 (revamp kickoff): replaced memory; removed Ollama dep + all
