@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <title>Crumbbase</title>
+  <!-- tile -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="#0f1115"/>
+  <!-- crumb trail: small -> large, fading in toward the captured note -->
+  <circle cx="118" cy="392" r="30" fill="#6ea8fe" opacity="0.55"/>
+  <circle cx="198" cy="338" r="41" fill="#6ea8fe" opacity="0.75"/>
+  <circle cx="266" cy="294" r="48" fill="#6ea8fe"/>
+  <!-- captured note -->
+  <rect x="306" y="182" width="148" height="148" rx="34" fill="#e8eaf0"/>
+  <rect x="344" y="220" width="72" height="72" rx="18" fill="#0f1115"/>
+</svg>

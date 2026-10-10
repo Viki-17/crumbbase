@@ -36,7 +36,8 @@ props_json) + links(from_block→to_page/block) + tags + jobs + processing_logs
 - [ ] **P2 Web of notes** — `[[link]]` parse + backlinks panel, graph from
   `links`, timestamp deep-links, daily review queue + daily-journal page.
 - [ ] **P3 Breadth & polish** — PDF/book + blog ingest, AI folders, ZIP export,
-  extension/PWA share, password auth, TTS re-wire.
+  extension/PWA share (installable shell DONE Oct 2026, share-target pending),
+  password auth, TTS re-wire.
 
 ## Session discipline
 - Keep exactly one phase `in_progress`; mark done only when verified running.
@@ -239,3 +240,15 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   prefers the UI cookies file, then `YTDLP_COOKIES`. Verified: 403/403/200
   gate, 400 validation, save→0600→test→delete round-trip, provider override
   live, 005 migrates (22 tables), new bundle served, pushed.
+- Oct 2026 (PWA installable shell): `vite-plugin-pwa@0.21` (Vite 5-compatible
+  pin) with `autoUpdate` generateSW (shell + woff2 precache, no API caching,
+  no navigateFallback — app boots to Library from memory), manifest
+  (standalone, `#0f1115`, 192/512 + maskable). Custom crumb-trail icon replaces
+  `vite.svg`: `public/icon.svg` source of truth + `scripts/gen-icons.py` (PIL,
+  4x supersample) renders `public/icons/` set. `main.jsx` registers SW via
+  `virtual:pwa-register`. Verified: vite build, manifest JSON valid, SW fetch
+  handler via workbox, preview serves manifest/sw/icons byte-identical with
+  correct MIME, eslint clean. Deploy rides the normal client flow (rebuild +
+  rsync dist); share-target still pending. Gotcha: local preview ports collide
+  with other projects' vite servers — verify with `--strictPort --host` + byte
+  compare, not just status codes.
