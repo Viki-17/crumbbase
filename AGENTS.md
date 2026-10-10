@@ -44,6 +44,22 @@ props_json) + links(from_block→to_page/block) + tags + jobs + processing_logs
 - Infra: Node + SQLite + `opencode serve :4096` + yt-dlp/ffmpeg + git.
   No brokers, no Atlas, no whitelist pain.
 
+## Deployment (server: `web.chatcrumbs.com`, repo at `/root/crumbbase`)
+Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
+- Frontend = **static files** at `/var/www/crumbbase/dist` (owner
+  `www-data:www-data`), served by nginx site `web.chatcrumbs.com`
+  (`/api` → `127.0.0.1:3001/api`). NOT the pm2 `crumbbase-client` app
+  (Vite dev server — never start it in production).
+- Backend = pm2 `crumbbase-api` (`./server/index.js`) + sidecar pm2
+  `crumbbase-opencode` (`opencode serve --port 4096 --hostname 127.0.0.1`).
+  `pm2 save` after start/delete changes. Logs are repo-local `logs/api-*.log`.
+- After any `client/` change: `npm run build` → `rsync -a --delete
+  client/dist/ /var/www/crumbbase/dist/` → `chown -R www-data:www-data` →
+  `nginx -t && nginx -s reload` → verify new `index-*.js` hash is served.
+  Server-only changes just need `pm2 restart crumbbase-api`.
+- `better-sqlite3` pinned to **v12** (server runs Node 20; v13 needs Node
+  ≥ 22 and segfaults Node 20 silently). Never upgrade without Node 22+.
+
 ## Gotchas log
 - better-sqlite3 repos are synchronous: they return values, not promises.
   `await` on them is harmless but `.catch()` chaining throws
@@ -56,6 +72,13 @@ props_json) + links(from_block→to_page/block) + tags + jobs + processing_logs
 - Mongoose buffers ops while disconnected: guard queue tick and endpoints with
   `mongoose.connection.readyState !== 1`. (Kept as a lesson for SQLite: never
   let a health endpoint hang on a down dependency.)
+- better-sqlite3 v13 requires Node ≥ 22 — on Node 20 it segfaults with a core
+  dump and ZERO log output (even `:memory:` open crashes; pm2 shows restarts
+  climbing, err log empty). Pinned to v12; diagnose with
+  `timeout 20 node server/index.js` in the foreground.
+- Old-stack strings (Mongo/Rabbit/Ollama) in `logs/*.log` are stale file
+  content from pre-revamp runs — `truncate -s 0 logs/api-*.log` after restart
+  for a clean view. Revamp code has zero references to those services.
 
 ## Sessions
 - Oct 2026 (revamp kickoff): replaced memory; removed Ollama dep + all
@@ -187,3 +210,14 @@ props_json) + links(from_block→to_page/block) + tags + jobs + processing_logs
   empty pushes). Worker self-schedules an hourly due-check at boot + hourly
   (`hasPendingJob` guard). Verified live against local bare repo: push →
   gated skip → manual push on change → manual unchanged-skip, no empty push.
+- Oct 2026 (server deploy): pulled revamp to `/root/crumbbase` (dropped 3
+  local old-stack commits + stashed old-UI work per user — superseded by the
+  SQLite rewrite), installed ffmpeg + yt-dlp binary, downgraded
+  better-sqlite3 v13→v12 (Node 20 segfault), clean `.env` (old Mongo-secrets
+  `.env` kept as `.env.old-stack.bak`, gitignored), rebuilt client and synced
+  `/var/www/crumbbase/dist`, pm2 `crumbbase-opencode` + `crumbbase-api` online
+  (`pm2 save`). Verified: setup/status green (sqlite 23 tables, tools true,
+  sidecar reachable), paste→structure→complete smoke test with live AI
+  (page + 12 search hits, then deleted), web + nginx API agree. Completed
+  truncated `DEPLOY.md` (§7 tail + §8 nginx + §9 update flow + §10
+  troubleshooting) and added Deployment section + gotchas here.
