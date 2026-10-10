@@ -151,3 +151,7 @@ server/piper/
 server/piper.tar.gz
 server/models/
 server/venv/
+
+# Crumbbase runtime data (revamp P0): SQLite DB + Markdown mirror live here.
+# The mirror is pushed to a SEPARATE private backup repo (P1 job), never here.
+/data/

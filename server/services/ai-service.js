@@ -3,8 +3,9 @@ const opencode = require("./opencode-client");
 // Reusable function for AI generation via the OpenCode server.
 // All prompts are routed through opencode-client which talks to a sidecar
 // `opencode serve` process using the opencode-go provider models:
-//   - "pro"   => opencode-go/deepseek-v4-pro (heavy: summaries, notes, analysis)
-//   - "flash" => opencode-go/deepseek-v4-flash (light: link explanation, ask AI)
+//   - "pro"   => opencode-go/muse-spark-1.3-contributor (heavy: summaries, notes, analysis)
+//   - "flash" => opencode-go/muse-spark-1.3-contributor (light: link explanation, ask AI)
+// Tiers are overridable via OPENCODE_PRO_MODEL / OPENCODE_FLASH_MODEL in .env.
 
 async function generateChapterOverview(
   chapterText,

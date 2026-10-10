@@ -1,208 +1,101 @@
-import React, { useState, useEffect } from "react";
-import api from "./api";
+import { useState, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
-import Layout from "./components/layout/Layout";
-import NoteView from "./components/views/NoteView";
-import GraphView from "./components/views/GraphView";
-import FolderView from "./components/views/FolderView";
-import BookDashboard from "./components/BookDashboard";
-import BookInput from "./components/BookInput";
-import NotesExplorer from "./components/NotesExplorer";
-import HomeView from "./components/views/HomeView";
-import Loading from "./components/layout/Loading";
-import "./styles/main-content.css";
+import { LibraryBig, Search, Tags, Network } from "lucide-react";
+import Library from "./views/Library.jsx";
+import SourceView from "./views/SourceView.jsx";
+import SearchView from "./views/SearchView.jsx";
+import ConceptsView from "./views/ConceptsView.jsx";
+import ConceptView from "./views/ConceptView.jsx";
+import GraphView from "./views/GraphView.jsx";
+import "./index.css";
 
-/**
- * App - Main application with new 3-pane layout
- *
- * Views:
- * - home: Library view with book grid
- * - book: Book dashboard with chapters
- * - note: Single note view
- * - notes: All notes explorer
- * - graph: Graph visualization
- * - folders: AI-organized folders
- * - processing: Processing status (TODO: Phase 4)
- */
-function App() {
-  const [currentView, setCurrentView] = useState("home");
-  const [selectedNoteId, setSelectedNoteId] = useState(null);
-  const [selectedBookId, setSelectedBookId] = useState(null);
-  const [selectedBook, setSelectedBook] = useState(null);
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // View state preservation
-  const [notesExplorerState, setNotesExplorerState] = useState(null);
-  const [previousView, setPreviousView] = useState("home");
-
-  useEffect(() => {
-    fetchBooks();
+// Crumbbase shell: library / source / search / concepts / graph.
+export default function App() {
+  const [route, setRoute] = useState({ view: "library" });
+  const go = useCallback((r) => {
+    setRoute(r);
+    window.scrollTo(0, 0);
   }, []);
-
-  useEffect(() => {
-    if (selectedBookId) {
-      fetchBookDetails();
-    }
-  }, [selectedBookId]);
-
-  const fetchBooks = async () => {
-    try {
-      const res = await api.get("/books");
-      setBooks(res.data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchBookDetails = async () => {
-    try {
-      const res = await api.get(`/books/${selectedBookId}`);
-      setSelectedBook(res.data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleSelectView = (view, id = null, context = null) => {
-    // If we are navigating to 'note', track where we came from
-    if (view === "note") {
-      setPreviousView(currentView);
-    }
-
-    // If we are navigating FROM 'notes' TO 'note', save the context
-    if (currentView === "notes" && view === "note" && context) {
-      setNotesExplorerState(context);
-    }
-    // If navigating to home or notes fresh, clear context
-    else if (view === "home" || (view === "notes" && !context)) {
-      if (view !== "notes") {
-        setNotesExplorerState(null);
-      }
-    }
-
-    setCurrentView(view);
-
-    if (view === "book" && id) {
-      setSelectedBookId(id);
-      setSelectedNoteId(null);
-    } else if (view === "note" && id) {
-      setSelectedNoteId(id);
-      setSelectedBookId(null);
-    } else {
-      setSelectedBookId(null);
-      setSelectedNoteId(null);
-      setSelectedBook(null);
-    }
-  };
-
-  const handleBookAdded = (id) => {
-    setSelectedBookId(id);
-    setCurrentView("book");
-    fetchBooks();
-  };
-
-  const handleDeleteBook = () => {
-    setSelectedBookId(null);
-    setSelectedBook(null);
-    setCurrentView("home");
-    fetchBooks();
-  };
-
-  const handleNoteUpdated = (updatedNote) => {
-    // Refresh if needed
-    console.log("Note updated:", updatedNote);
-  };
-
-  const renderMainContent = () => {
-    switch (currentView) {
-      case "note":
-        return (
-          <NoteView
-            noteId={selectedNoteId}
-            onNoteUpdated={handleNoteUpdated}
-            onBack={() => {
-              // Return to previous view
-              handleSelectView(previousView);
-            }}
-            onSelectView={handleSelectView}
-          />
-        );
-
-      case "graph":
-        return (
-          <GraphView
-            onSelectNote={(noteId) => handleSelectView("note", noteId)}
-            onBack={() => handleSelectView("home")}
-          />
-        );
-
-      case "folders":
-        return (
-          <FolderView
-            onSelectNote={(noteId) => handleSelectView("note", noteId)}
-            onBack={() => handleSelectView("home")}
-          />
-        );
-
-      case "notes":
-        return (
-          <NotesExplorer
-            onSelectView={handleSelectView}
-            initialState={notesExplorerState}
-          />
-        );
-
-      case "book":
-        return selectedBookId ? (
-          <BookDashboard
-            key={selectedBookId}
-            bookId={selectedBookId}
-            onDelete={handleDeleteBook}
-            onBack={() => handleSelectView("home")}
-            onSelectView={handleSelectView}
-          />
-        ) : (
-          <div className="main-content-empty">
-            Select a book from the sidebar
-          </div>
-        );
-
-      case "home":
-      default:
-        return (
-          <HomeView
-            books={books}
-            loading={loading}
-            onSelectBook={(id) => handleSelectView("book", id)}
-            onBookAdded={handleBookAdded}
-          />
-        );
-    }
-  };
+  const isActive = (v) =>
+    v === "library"
+      ? route.view === "library" || route.view === "source"
+      : v === "concepts"
+        ? route.view === "concepts" || route.view === "concept"
+        : route.view === v;
 
   return (
-    <Layout
-      selectedNote={selectedNoteId ? { id: selectedNoteId } : null}
-      selectedBook={selectedBook}
-      onSelectView={handleSelectView}
-      books={books}
-    >
-      {renderMainContent()}
-      <Toaster
-        position="bottom-right"
-        toastOptions={{
-          style: {
-            background: "#1e293b",
-            color: "#fff",
-            border: "1px solid rgba(148, 163, 184, 0.1)",
-          },
-        }}
-      />
-    </Layout>
+    <div className="app">
+      <Toaster position="bottom-center" containerStyle={{ bottom: 76 }} />
+      <aside className="sidebar">
+        <div className="brand">
+          Crumb<span>base</span>
+        </div>
+        <button
+          className={`nav-btn${route.view === "library" || route.view === "source" ? " active" : ""}`}
+          onClick={() => go({ view: "library" })}
+        >
+          <LibraryBig size={18} /> Library
+        </button>
+        <button
+          className={`nav-btn${route.view === "search" ? " active" : ""}`}
+          onClick={() => go({ view: "search", q: "" })}
+        >
+          <Search size={18} /> Search
+        </button>
+        <button
+          className={`nav-btn${route.view === "concepts" || route.view === "concept" ? " active" : ""}`}
+          onClick={() => go({ view: "concepts" })}
+        >
+          <Tags size={18} /> Concepts
+        </button>
+        <button
+          className={`nav-btn${route.view === "graph" ? " active" : ""}`}
+          onClick={() => go({ view: "graph" })}
+        >
+          <Network size={18} /> Graph
+        </button>
+        <div className="sidebar-foot">
+          <a
+            href="/api/setup/status"
+            target="_blank"
+            rel="noreferrer"
+          >
+            setup status
+          </a>
+        </div>
+      </aside>
+      {/* Mobile top bar + bottom tab bar (CSS shows only on small screens) */}
+      <header className="mobile-topbar">
+        <span className="brand">
+          Crumb<span>base</span>
+        </span>
+      </header>
+      <nav className="mobile-nav" aria-label="Primary">
+        <button className={`tab${isActive("library") ? " active" : ""}`} onClick={() => go({ view: "library" })}>
+          <LibraryBig size={20} />
+          <span>Library</span>
+        </button>
+        <button className={`tab${isActive("search") ? " active" : ""}`} onClick={() => go({ view: "search", q: "" })}>
+          <Search size={20} />
+          <span>Search</span>
+        </button>
+        <button className={`tab${isActive("concepts") ? " active" : ""}`} onClick={() => go({ view: "concepts" })}>
+          <Tags size={20} />
+          <span>Concepts</span>
+        </button>
+        <button className={`tab${isActive("graph") ? " active" : ""}`} onClick={() => go({ view: "graph" })}>
+          <Network size={20} />
+          <span>Graph</span>
+        </button>
+      </nav>
+      <main className="main">
+        {route.view === "library" && <Library go={go} />}
+        {route.view === "source" && <SourceView key={route.id} id={route.id} go={go} />}
+        {route.view === "search" && <SearchView key={route.q || "s"} initial={route.q || ""} go={go} />}
+        {route.view === "concepts" && <ConceptsView go={go} />}
+        {route.view === "concept" && <ConceptView key={route.id} id={route.id} go={go} />}
+        {route.view === "graph" && <GraphView go={go} />}
+      </main>
+    </div>
   );
 }
-
-export default App;

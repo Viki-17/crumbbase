@@ -6,10 +6,40 @@ require("dotenv").config();
 
 const BASE_URL = process.env.OPENCODE_SERVER_URL || "http://127.0.0.1:4096";
 
-const MODELS = {
-  pro: { providerID: "opencode-go", modelID: "deepseek-v4-pro" },
-  flash: { providerID: "opencode-go", modelID: "deepseek-v4-flash" },
-};
+const PROVIDER_ID = "opencode-go";
+
+function configuredModels() {
+  // Prefer validated config; fall back to env/defaults for standalone scripts.
+  try {
+    const { config } = require("../config");
+    return {
+      pro: { providerID: PROVIDER_ID, modelID: config.opencodeProModel },
+      flash: { providerID: PROVIDER_ID, modelID: config.opencodeFlashModel },
+    };
+  } catch {
+    return {
+      pro: {
+        providerID: PROVIDER_ID,
+        modelID: process.env.OPENCODE_PRO_MODEL || "muse-spark-1.3-contributor",
+      },
+      flash: {
+        providerID: PROVIDER_ID,
+        modelID: process.env.OPENCODE_FLASH_MODEL || "muse-spark-1.3-contributor",
+      },
+    };
+  }
+}
+
+function modelFor(modelKey) {
+  const models = configuredModels();
+  return models[modelKey] || models.pro;
+}
+
+// Human label recorded in mirrors/logs, e.g. "opencode-go/muse-spark-1.3-contributor".
+function modelLabel(modelKey = "pro") {
+  const m = modelFor(modelKey);
+  return `${m.providerID}/${m.modelID}`;
+}
 
 let clientPromise = null;
 
@@ -37,11 +67,19 @@ function formatError(context, err) {
  */
 async function generate(prompt, modelKey = "pro") {
   const client = await getClient();
-  const model = MODELS[modelKey] || MODELS.pro;
+  const model = modelFor(modelKey);
 
-  const sessionRes = await client.session.create({
-    body: { title: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
-  });
+  let sessionRes;
+  try {
+    sessionRes = await client.session.create({
+      body: { title: `job-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` },
+    });
+  } catch (err) {
+    throw formatError(
+      `connect to OpenCode sidecar at ${BASE_URL} — is \`opencode serve --port 4096 --hostname 127.0.0.1\` running?`,
+      err,
+    );
+  }
   if (sessionRes.error || !sessionRes.data?.id) {
     throw formatError("session.create", sessionRes.error);
   }
@@ -125,5 +163,6 @@ module.exports = {
   generate,
   generateJSON,
   parseJSON,
-  MODELS,
+  modelFor,
+  modelLabel,
 };
