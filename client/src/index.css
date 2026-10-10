@@ -11,8 +11,54 @@
   --yellow: #e5b567;
   --red: #e5636f;
   --radius: 10px;
-  font-family: Inter, system-ui, sans-serif;
+  --font-ui: Inter, system-ui, sans-serif;
+  --font-read: "Libron", Georgia, "Times New Roman", serif;
+  font-family: var(--font-ui);
 }
+
+/* Libron (OFL 1.1, © Nico Verbruggen) — self-hosted reading font.
+   License: /fonts/libron/OFL.txt. UI chrome stays in Inter; only the
+   long-form reading surfaces below switch to --font-read. */
+@font-face {
+  font-family: "Libron";
+  src: url("/fonts/libron/Libron-Regular.woff2") format("woff2");
+  font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Libron";
+  src: url("/fonts/libron/Libron-Italic.woff2") format("woff2");
+  font-weight: 400; font-style: italic; font-display: swap;
+}
+@font-face {
+  font-family: "Libron";
+  src: url("/fonts/libron/Libron-Bold.woff2") format("woff2");
+  font-weight: 700; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Libron";
+  src: url("/fonts/libron/Libron-BoldItalic.woff2") format("woff2");
+  font-weight: 700; font-style: italic; font-display: swap;
+}
+
+/* Reading surfaces: note prose only (nav/buttons/meta/headings untouched) */
+.outline-tldr,
+.idea-card-body,
+.zettel-body,
+.q-text,
+.search-hit .snippet,
+.search-group .snippet,
+.snippet,
+.seg,
+.evidence,
+.lib-tldr {
+  font-family: var(--font-read);
+  text-rendering: optimizeLegibility;
+}
+/* Serifs read small at UI sizes — bump prose a step, loosen leading */
+.idea-card-body, .zettel-body, .q-text, .snippet { font-size: 15.5px; line-height: 1.7; }
+.seg { font-size: 15px; line-height: 1.7; }
+.evidence { font-size: 13.5px; line-height: 1.65; }
+.lib-tldr { font-size: 14px; line-height: 1.6; }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }

@@ -177,3 +177,7 @@ props_json) + links(from_block→to_page/block) + tags + jobs + processing_logs
   hero row (92px thumb), 2-col action grid with subtle Delete, tags collapsed
   to 8 + show-all toggle, graph scrolls horizontally, toasts bottom-center
   above tab bar. Verified: vite build green.
+- Oct 2026 (reading font): Libron v0.31 (OFL, self-hosted `client/public/fonts/
+  libron/` + OFL.txt) for prose surfaces only (TLDR, card bodies, questions,
+  snippets, transcript, evidence, library preview); UI chrome stays Inter.
+  Unused Merriweather dropped from index.html. Verified: vite build green.
