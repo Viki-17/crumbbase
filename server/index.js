@@ -14,13 +14,23 @@ const {
 } = require("./services/pdf-processor");
 const aiService = require("./services/ai-service");
 const ttsService = require("./services/tts-service");
-const embeddingService = require("./services/embeddings");
-const vectorStore = require("./services/vector-store");
-const rabbitmq = require("./services/rabbitmq");
+// NOTE (revamp Oct 2026): Ollama embeddings + vector-store removed. Ask AI,
+// auto-connect and suggest-links return 501 until P1/P2 rebuilds them on
+// FTS/LLM (see AGENTS.md).
+// DB-backed job queue + in-process events (ported from learncache).
+// `rabbitmq` alias keeps publishJob/publishEvent call sites unchanged;
+// the RabbitMQ broker is no longer required.
+const jobsQueue = require("./services/jobs");
+const events = require("./services/events");
+const rabbitmq = {
+  publishEvent: events.publishEvent,
+  publishJob: jobsQueue.publishJob,
+};
 const worker = require("./worker"); // Import worker to run in same process for simplicity
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const { config } = require("./config");
+const PORT = config.port;
 const API_BASE = "/api"; // Centralized API Base
 
 app.use(cors());
@@ -37,8 +47,8 @@ function broadcast(bookId, data) {
   }
 }
 
-// RabbitMQ Event Listener for SSE
-rabbitmq.consumeEvents((event) => {
+// In-process event fan-out to SSE (replaces RabbitMQ ai.events consumer)
+events.consumeEvents((event) => {
   const { bookId, type, ...payload } = event;
 
   // Handle global folder events
@@ -161,53 +171,12 @@ router.get("/notes", async (req, res) => {
   }
 });
 
-// Natural Language Ask AI (RAG over notes, answered via deepseek-v4-flash)
+// Natural Language Ask AI — REMOVED Oct 2026 (Ollama embeddings dropped).
+// Rebuilt in P1 on FTS5 retrieval + flash answering (see AGENTS.md).
 router.post("/notes/ask", async (req, res) => {
-  try {
-    const { query } = req.body;
-    if (!query) return res.status(400).json({ error: "Query required" });
-
-    // 1. Generate Embedding for query
-    const queryEmbedding = await embeddingService.generateEmbedding(query);
-
-    // 2. Find Similar Notes
-    const similarNotes = await vectorStore.findSimilar(queryEmbedding, 8); // Top 8
-
-    // 3. Hydrate with full content
-    const sources = [];
-    for (const item of similarNotes) {
-      const note = await storage.getNote(item.id);
-      if (note) {
-        sources.push({
-          id: note.id,
-          title: note.title,
-          content: note.content,
-          score: item.score,
-        });
-      }
-    }
-
-    if (sources.length === 0) {
-      return res.json({
-        answer: "No relevant notes were found to answer this question.",
-        sources: [],
-      });
-    }
-
-    // 4. Synthesize an answer from the retrieved notes
-    const answer = await aiService.answerQuestion(query, sources);
-
-    res.json({
-      answer,
-      sources: sources.map((s) => ({
-        id: s.id,
-        title: s.title,
-        score: s.score,
-      })),
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.status(501).json({
+    error: "Ask AI is being rebuilt on FTS search (revamp P1).",
+  });
 });
 
 router.get("/notes/:id", async (req, res) => {
@@ -488,79 +457,12 @@ router.get("/graph", async (req, res) => {
   }
 });
 
+// Auto-connect — REMOVED Oct 2026 (depended on Ollama vector similarity).
+// Rebuilt in P2 as LLM-judged linking over FTS/tag candidates (see AGENTS.md).
 router.post("/graph/auto-connect", async (req, res) => {
-  try {
-    // This is a heavy operation, so we acknowledge locally and process async
-    // In a real app, use a proper queue. Here we just run it and let the user know it started.
-
-    res.json({ message: "Auto-connection started... this may take a while." });
-
-    const notes = await storage.getAllNotes();
-    console.log(`[Auto-Connect] Processing ${notes.length} notes...`);
-
-    // We need embeddings for all notes first
-    let notesWithEmbeddings = [];
-    for (const note of notes) {
-      if (!note.embedding || note.embedding.length === 0) {
-        // Generate embedding if missing
-        try {
-          note.embedding = await embeddingService.generateEmbedding(
-            `${note.title}\n${note.content}`,
-          );
-          await storage.saveNote(note);
-        } catch (e) {
-          console.error(`Failed to embed note ${note.id}`, e);
-          continue;
-        }
-      }
-      notesWithEmbeddings.push(note);
-    }
-
-    // Now find connections
-    // For each note, find top 3 similar notes that aren't already linked
-    let newEdgesCount = 0;
-
-    for (const sourceNote of notesWithEmbeddings) {
-      // Get existing links to avoid duplicates
-      const existingEdges = await storage.getEdgesForNote(sourceNote.id);
-      const linkedIds = new Set(
-        existingEdges.map((e) => (e.from === sourceNote.id ? e.to : e.from)),
-      );
-
-      const candidates = await vectorStore.findSimilar(
-        sourceNote.embedding,
-        5,
-        sourceNote.id,
-      );
-
-      for (const candidate of candidates) {
-        if (linkedIds.has(candidate.id)) continue;
-        if (candidate.score < 0.75) continue; // Higher threshold for auto-links
-
-        // Optional: Verify with LLM? skipping to save time/cost for this "fix", relying on vector score
-        // We can mark these as "ai-candidate" or just "ai"
-
-        const edge = {
-          from: sourceNote.id,
-          to: candidate.id,
-          type: "conceptual",
-          direction: "bidirectional",
-          createdBy: "ai",
-          confidence: candidate.score,
-          reason: "High vector similarity",
-          createdAt: new Date().toISOString(),
-        };
-
-        await storage.addEdge(edge);
-        linkedIds.add(candidate.id); // Prevent multiple adds
-        newEdgesCount++;
-      }
-    }
-
-    console.log(`[Auto-Connect] Finished. Created ${newEdgesCount} new links.`);
-  } catch (err) {
-    console.error("Auto-connect failed:", err);
-  }
+  res.status(501).json({
+    error: "Auto-connect is being rebuilt on link-based suggestions (revamp P2).",
+  });
 });
 
 router.post("/links/explain", async (req, res) => {
@@ -622,25 +524,12 @@ router.get("/notes/:id/links", async (req, res) => {
   }
 });
 
-// AI Link Suggestions Endpoint
+// AI Link Suggestions — REMOVED Oct 2026 (depended on Ollama embeddings).
+// Rebuilt in P2 as LLM-judged suggestions (see AGENTS.md).
 router.post("/notes/:id/suggest-links", async (req, res) => {
-  try {
-    const note = await storage.getNote(req.params.id);
-    if (!note) return res.status(404).json({ error: "Note not found" });
-
-    // We need embedding. If missing, generate it.
-    if (!note.embedding || note.embedding.length === 0) {
-      note.embedding = await embeddingService.generateEmbedding(
-        `${note.title}\n${note.content}`,
-      );
-      await storage.saveNote(note);
-    }
-
-    const suggestions = await vectorStore.suggestLinks(note);
-    res.json(suggestions);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  res.status(501).json({
+    error: "Link suggestions are being rebuilt (revamp P2).",
+  });
 });
 
 // Auto Grouping (Folders) Endpoint - Now uses queue for async processing
@@ -858,6 +747,70 @@ router.post("/chapters/:id/retry", async (req, res) => {
   }
 });
 
+// Setup / readiness status (ported from learncache's /api/setup/status).
+// Checks each integration so "AI isn't working" becomes a checklist, not a mystery.
+router.get("/setup/status", async (req, res) => {
+  const mongoose = require("mongoose");
+  const { config: appConfig } = require("./config");
+  const jobs = require("./services/jobs");
+
+  async function reachable(url) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3000);
+      await fetch(url, { signal: controller.signal });
+      clearTimeout(timer);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function isWritableDirectory(dir) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.accessSync(dir, fs.constants.W_OK);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  const uploadsDir = path.resolve(__dirname, "uploads");
+  const piperBin = path.resolve(__dirname, "piper", "piper");
+  const mongoConnected = mongoose.connection.readyState === 1;
+
+  // Skip the queue count while disconnected: Mongoose buffers ops by default,
+  // so an unguarded countDocuments() would hang the endpoint instead of reporting.
+  let queue = null;
+  if (mongoConnected) {
+    try {
+      queue = await jobs.getQueueDepth();
+    } catch {
+      queue = null;
+    }
+  }
+
+  res.json({
+    queueBackend: "db",
+    uploadsDir: { path: uploadsDir, writable: isWritableDirectory(uploadsDir) },
+    mongo: {
+      configured: Boolean(appConfig.mongoUri),
+      connected: mongoConnected,
+    },
+    ai: {
+      opencodeServerUrl: appConfig.opencodeServerUrl,
+      opencodeReachable: await reachable(appConfig.opencodeServerUrl),
+    },
+    queue,
+    tts: {
+      platform: process.platform,
+      // macOS ships `say`; Linux needs the local Piper binary (see README)
+      available: process.platform === "darwin" ? true : fs.existsSync(piperBin),
+    },
+  });
+});
+
 // MOUNT ROUTER
 app.use(API_BASE, router);
 
@@ -893,14 +846,15 @@ async function processBookWithChunks(bookId, textChunks) {
     console.log("book ======>", book);
     broadcast(bookId, { type: "bookUpdate", book });
 
-    // Publish Initial Jobs (Overview) for all chapters
+    // Publish Initial Jobs (Overview) for all chapters via DB queue.
+    // (Previously commented out for RabbitMQ — restored with the DB queue.)
     for (const chapId of chapterIds) {
-      // await rabbitmq.publishJob({
-      //   type: "overview",
-      //   bookId,
-      //   chapterId: chapId,
-      //   stage: "overview",
-      // });
+      await rabbitmq.publishJob({
+        type: "overview",
+        bookId,
+        chapterId: chapId,
+        stage: "overview",
+      });
     }
 
     console.log(`Pipeline started for book: ${bookId}`);

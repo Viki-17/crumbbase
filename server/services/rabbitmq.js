@@ -1,3 +1,6 @@
+// DEPRECATED: the DB-backed queue (server/services/jobs.js) + in-process events
+// (server/services/events.js) replaced RabbitMQ. Nothing requires this file
+// anymore; it is kept for reference/rollback only.
 const amqp = require("amqplib");
 
 // Default to 127.0.0.1 to avoid IPv6 issues

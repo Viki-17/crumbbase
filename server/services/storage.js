@@ -11,19 +11,45 @@ const {
 } = require("../models");
 
 // --- MongoDB Connection ---
+// Single-flight: worker.startWorker() and startServer() call connectDB()
+// concurrently at boot; without a shared promise one caller hangs while the
+// other owns the opening connection.
 let isConnected = false;
+let connectPromise = null;
 
 async function connectDB() {
   if (isConnected) return;
-
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    isConnected = true;
-    console.log("MongoDB connected");
-  } catch (err) {
-    console.error("MongoDB connection error:", err);
-    throw err;
+  if (!connectPromise) {
+    connectPromise = (async () => {
+      try {
+        // Validated config fails fast with a clear message when MONGODB_URI is missing
+        const { config } = require("../config");
+        await mongoose.connect(config.mongoUri);
+        isConnected = true;
+        console.log("MongoDB connected");
+      } catch (err) {
+        console.error("MongoDB connection error:", err);
+        // Surface the per-server handshake errors: Mongoose's top-level message
+        // always blames the IP whitelist, but the real cause (TLS alert vs auth
+        // vs timeout) is in reason.servers. Log it — it never contains credentials.
+        try {
+          const servers = err?.reason?.servers;
+          if (servers) {
+            for (const [host, desc] of servers) {
+              console.error(
+                `[MongoDB] ${host} -> ${desc?.type}: ${String(desc?.error?.message || "").slice(0, 200)}`,
+              );
+            }
+          }
+        } catch {
+          // logging must never throw
+        }
+        connectPromise = null; // allow later calls to retry
+        throw err;
+      }
+    })();
   }
+  await connectPromise;
 }
 
 // Ensure connection on first call
@@ -160,11 +186,11 @@ const getAllNotes = async () => {
   return await Note.find().lean();
 };
 
-// Lightweight note list for UI consumers — omits embedding vectors and
-// suggested links (the browser never reads them), keeping payloads small.
+// Lightweight note list for UI consumers — omits suggested links
+// (the browser never reads them), keeping payloads small.
 const getAllNotesLite = async () => {
   await ensureConnected();
-  return await Note.find().select("-embedding -suggestedLinks").lean();
+  return await Note.find().select("-suggestedLinks").lean();
 };
 
 const getNotesWithPagination = async (page = 1, limit = 20, search = "") => {
@@ -181,7 +207,7 @@ const getNotesWithPagination = async (page = 1, limit = 20, search = "") => {
 
   const [notes, total] = await Promise.all([
     Note.find(query)
-      .select("-embedding -suggestedLinks")
+      .select("-suggestedLinks")
       .skip(skip)
       .limit(limit)
       .lean(),

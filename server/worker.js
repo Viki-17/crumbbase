@@ -16,9 +16,17 @@ const {
   saveFolders,
 } = require("./services/storage");
 const aiService = require("./services/ai-service");
-const embeddingService = require("./services/embeddings");
-const vectorStore = require("./services/vector-store");
-const rabbitmq = require("./services/rabbitmq");
+// NOTE (revamp Oct 2026): Ollama embeddings + vector-store removed. Notes are
+// saved without vectors; link suggestions return in P2 via LLM judging.
+// DB-backed queue (Mongo) + in-process events — ported from learncache.
+// `rabbitmq` alias keeps existing publishEvent/publishJob call sites working;
+// the broker itself is no longer used (see server/services/jobs.js, events.js).
+const jobsQueue = require("./services/jobs");
+const events = require("./services/events");
+const rabbitmq = {
+  publishEvent: events.publishEvent,
+  publishJob: jobsQueue.publishJob,
+};
 const { v4: uuidv4 } = require("uuid");
 
 // --- Helper: Check for Cancellation ---
@@ -95,7 +103,10 @@ async function processJob(job) {
         rabbitmq.publishEvent({ type: "error", bookId, message: err.message });
       }
     }
-    // DO NOT trigger next stage on failure - wait for manual retry
+    // DO NOT trigger next stage on failure - wait for manual retry.
+    // Rethrow so the DB queue can apply backoff retries (learncache decideRetry).
+    // Domain status above already records the failure; the tick only schedules retry.
+    throw err;
   }
 }
 
@@ -236,22 +247,10 @@ async function handleNotes(bookId, chapterId) {
 
   if (await isCancelled(bookId, chapterId)) return;
 
-  // Process Notes
+  // Process Notes (no embeddings: Ollama removed Oct 2026, P2 re-adds
+  // link suggestions via LLM judging)
   const notesPromises = notesData.map(async (n) => {
     const noteId = uuidv4();
-    const embedding = await embeddingService.generateEmbedding(
-      `${n.title}\n${n.content}`,
-    );
-
-    // Suggest Links (this could be its own job if too slow)
-    // We'll keep it here for now
-    const tempNote = {
-      id: noteId,
-      title: n.title,
-      content: n.content,
-      embedding,
-    };
-    const suggestions = await vectorStore.suggestLinks(tempNote);
 
     const note = {
       id: noteId,
@@ -261,12 +260,10 @@ async function handleNotes(bookId, chapterId) {
       tags: n.tags || [],
       source: { bookId, chapterId },
       links: [],
-      suggestedLinks: suggestions,
-      embedding,
+      suggestedLinks: [],
       createdAt: new Date().toISOString(),
     };
     await saveNote(note);
-    vectorStore.addNoteToCache(note);
   });
 
   await Promise.all(notesPromises);
@@ -498,17 +495,64 @@ async function handleFolderOrganize() {
   }
 }
 
-// --- Bootstrap ---
+// --- Bootstrap (DB poll loop, ported from learncache worker.ts) ---
+let _running = false;
+let _timer = null;
+
+async function runWorkerTick() {
+  if (_running) return;
+  // Skip polling while Mongo is disconnected — Mongoose buffers ops by default,
+  // which would stall the 2s loop instead of failing fast (learncache's local
+  // SQLite never has this problem; this guard is the Mongo equivalent).
+  if (require("mongoose").connection.readyState !== 1) return;
+  _running = true;
+  try {
+    const job = await jobsQueue.nextDueJob();
+    if (!job) return;
+
+    await jobsQueue.markJobRunning(job.id);
+    try {
+      await processJob(job);
+      await jobsQueue.markJobComplete(job.id);
+    } catch (err) {
+      const message = err && err.message ? err.message : String(err);
+      const retry = jobsQueue.decideRetry(job.attempts || 0, Date.now());
+      await jobsQueue.markJobFailed(job.id, retry.attempts, message, retry.retryAt);
+      await jobsQueue
+        .addLog({
+          bookId: job.bookId,
+          chapterId: job.chapterId,
+          level: retry.final ? "error" : "warn",
+          message: retry.final
+            ? `Job ${job.type} failed: ${message}`
+            : `Job ${job.type} failed, retry queued: ${message}`,
+        })
+        .catch(() => {});
+      // processJob already set chapter/book failed status + published error event
+    }
+  } finally {
+    _running = false;
+  }
+}
+
+function stopWorker() {
+  if (_timer) clearInterval(_timer);
+  _timer = null;
+}
+
 async function startWorker() {
   await connectDB();
-  await rabbitmq.connectRabbitMQ();
-
-  rabbitmq.consumeJobs(processJob);
-  console.log("[Worker] Service Started");
+  // Jobs stuck in running after a crash become runnable again (learncache pattern)
+  await jobsQueue.markStaleRunningJobsQueued().catch(() => {});
+  _timer = setInterval(() => {
+    void runWorkerTick();
+  }, jobsQueue.POLL_INTERVAL_MS);
+  void runWorkerTick();
+  console.log("[Worker] Service Started (DB queue)");
 }
 
 if (require.main === module) {
   startWorker();
 }
 
-module.exports = { startWorker };
+module.exports = { startWorker, stopWorker, runWorkerTick, processJob };

@@ -128,6 +128,45 @@ const folderSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now },
 });
 
+// --- Job Schema (DB-backed queue, ported from learncache's jobs table) ---
+// Replaces RabbitMQ ai.jobs.v2: status + attempts + nextRunAt drive a 2s
+// poll loop with quadratic backoff (see server/services/jobs.js).
+const jobSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  type: {
+    type: String,
+    required: true,
+    enum: ["overview", "notes", "book_analysis", "folder_organize"],
+  },
+  bookId: { type: String, default: null },
+  chapterId: { type: String, default: null },
+  stage: { type: String, default: null },
+  payload: { type: Object, default: {} },
+  status: {
+    type: String,
+    enum: ["queued", "running", "complete", "failed"],
+    default: "queued",
+  },
+  attempts: { type: Number, default: 0 },
+  nextRunAt: { type: Date, default: Date.now },
+  error: { type: String, default: null },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now },
+});
+jobSchema.index({ status: 1, nextRunAt: 1 });
+
+// --- ProcessingLog Schema (per-book/chapter timeline, ported from learncache) ---
+const processingLogSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true },
+  bookId: { type: String, default: null },
+  chapterId: { type: String, default: null },
+  level: { type: String, enum: ["info", "warn", "error"], default: "info" },
+  message: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+processingLogSchema.index({ bookId: 1, createdAt: 1 });
+processingLogSchema.index({ chapterId: 1, createdAt: 1 });
+
 // Models
 const Book = mongoose.model("Book", bookSchema);
 const Chapter = mongoose.model("Chapter", chapterSchema);
@@ -135,6 +174,8 @@ const Summary = mongoose.model("Summary", summarySchema);
 const Note = mongoose.model("Note", noteSchema);
 const Analysis = mongoose.model("Analysis", analysisSchema);
 const Graph = mongoose.model("Graph", graphSchema);
+const Job = mongoose.model("Job", jobSchema);
+const ProcessingLog = mongoose.model("ProcessingLog", processingLogSchema);
 
 module.exports = {
   Book,
@@ -143,5 +184,7 @@ module.exports = {
   Note,
   Analysis,
   Graph,
+  Job,
+  ProcessingLog,
   Folder: mongoose.model("Folder", folderSchema),
 };
