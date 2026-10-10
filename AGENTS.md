@@ -216,7 +216,7 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   better-sqlite3 v13→v12 (Node 20 segfault), clean `.env` (old Mongo-secrets
   `.env` kept as `.env.old-stack.bak`, gitignored), rebuilt client and synced
   `/var/www/crumbbase/dist`, pm2 `crumbbase-opencode` + `crumbbase-api` online
-  (`pm2 save`). Verified: setup/status green (sqlite 23 tables, tools true,
+  (`pm2 save`). Verified: setup/status green (sqlite 21 tables, tools true,
   sidecar reachable), paste→structure→complete smoke test with live AI
   (page + 12 search hits, then deleted), web + nginx API agree. Completed
   truncated `DEPLOY.md` (§7 tail + §8 nginx + §9 update flow + §10
