@@ -63,9 +63,15 @@ function sqliteStatus() {
 }
 
 function toolsStatus() {
+  const { config } = require("../config");
+  const cookies = String((config && config.ytdlpCookies) || "").trim();
   return {
     ytdlpAvailable: commandAvailable("yt-dlp"),
     ffmpegAvailable: commandAvailable("ffmpeg", ["-version"]),
+    ytdlpCookiesConfigured: Boolean(cookies),
+    ytdlpCookiesFileExists: cookies
+      ? require("fs").existsSync(require("path").resolve(process.cwd(), cookies))
+      : false,
   };
 }
 

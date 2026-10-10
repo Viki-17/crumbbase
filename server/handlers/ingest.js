@@ -91,13 +91,30 @@ function parseVtt(body) {
 }
 
 async function runYtDlpJson(url) {
+  const fs = require("fs");
+  const path = require("path");
   let stdout;
+  // Authenticated fetch: --cookies beats YouTube's bot challenge on
+  // datacenter IPs. Configured via YTDLP_COOKIES (see config.js); a missing
+  // file is ignored so a stale path can never break unauthenticated fetch.
+  const args = ["--dump-single-json", "--no-playlist", "--no-warnings"];
   try {
-    ({ stdout } = await execFileAsync(
-      "yt-dlp",
-      ["--dump-single-json", "--no-playlist", "--no-warnings", url],
-      { timeout: 90_000, maxBuffer: 64 * 1024 * 1024 },
-    ));
+    const { config } = require("../config");
+    const cookies = String(config.ytdlpCookies || "").trim();
+    if (cookies) {
+      const resolved = path.resolve(process.cwd(), cookies);
+      if (fs.existsSync(resolved)) args.push("--cookies", resolved);
+      else console.warn(`[ingest] YTDLP_COOKIES file missing (${resolved}); fetching without cookies.`);
+    }
+  } catch {
+    // config must never break the fetch; proceed unauthenticated
+  }
+  args.push(url);
+  try {
+    ({ stdout } = await execFileAsync("yt-dlp", args, {
+      timeout: 90_000,
+      maxBuffer: 64 * 1024 * 1024,
+    }));
   } catch (err) {
     if (err && (err.code === "ENOENT" || /not found/i.test(String(err.message)))) {
       throw new Error("yt-dlp is not installed. Install it or paste the transcript manually.");

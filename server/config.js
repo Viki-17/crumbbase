@@ -14,6 +14,10 @@ const envSchema = z.object({
   // Transcript capture: auto = try yt-dlp, fall back to pasted text;
   // yt-dlp = fail loudly when fetch fails; paste = skip fetching entirely.
   TRANSCRIPT_PROVIDER: z.enum(["auto", "yt-dlp", "paste"]).default("auto"),
+  // Optional Netscape-format cookies file for yt-dlp (beats YouTube's
+  // "Sign in to confirm you're not a bot" on datacenter IPs). Keep under
+  // DATA_DIR (gitignored) with 0600 perms; empty = no --cookies flag.
+  YTDLP_COOKIES: z.string().default(""),
   // GitHub backup (P1 job pushes ./data mirror; P0 only reports health).
   GITHUB_BACKUP_ENABLED: z.string().default("false"),
   GITHUB_BACKUP_REPO: z.string().default(""),
@@ -33,6 +37,7 @@ const config = {
   opencodeFlashModel: parsed.OPENCODE_FLASH_MODEL,
   dataDir: parsed.DATA_DIR,
   transcriptProvider: parsed.TRANSCRIPT_PROVIDER,
+  ytdlpCookies: parsed.YTDLP_COOKIES,
   githubBackupEnabled: isTruthy(parsed.GITHUB_BACKUP_ENABLED),
   githubBackupRepo: parsed.GITHUB_BACKUP_REPO,
   githubBackupBranch: parsed.GITHUB_BACKUP_BRANCH,
