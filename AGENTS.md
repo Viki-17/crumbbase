@@ -221,3 +221,13 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   (page + 12 search hits, then deleted), web + nginx API agree. Completed
   truncated `DEPLOY.md` (§7 tail + §8 nginx + §9 update flow + §10
   troubleshooting) and added Deployment section + gotchas here.
+- Oct 2026 (settings page): sidebar `setup status` link + new Settings view
+  (desktop sidebar, 5th mobile tab): status dashboard, transcript-provider
+  select (DB `app_settings` via `005_settings.sql`, effective immediately, no
+  restart), YouTube cookies paste (validates Netscape + youtube.com, writes
+  `0600 <DATA_DIR>/youtube-cookies.txt`, metadata-only responses + test-fetch
+  button). All `/api/settings*` gated by `SETTINGS_TOKEN` (timing-safe
+  compare, fail-closed when empty; UI keeps it in sessionStorage). Ingest
+  prefers the UI cookies file, then `YTDLP_COOKIES`. Verified: 403/403/200
+  gate, 400 validation, save→0600→test→delete round-trip, provider override
+  live, 005 migrates (22 tables), new bundle served, pushed.

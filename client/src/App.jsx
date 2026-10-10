@@ -1,12 +1,13 @@
 import { useState, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
-import { LibraryBig, Search, Tags, Network } from "lucide-react";
+import { LibraryBig, Search, Tags, Network, Settings } from "lucide-react";
 import Library from "./views/Library.jsx";
 import SourceView from "./views/SourceView.jsx";
 import SearchView from "./views/SearchView.jsx";
 import ConceptsView from "./views/ConceptsView.jsx";
 import ConceptView from "./views/ConceptView.jsx";
 import GraphView from "./views/GraphView.jsx";
+import SettingsView from "./views/SettingsView.jsx";
 import "./index.css";
 
 // Crumbbase shell: library / source / search / concepts / graph.
@@ -54,6 +55,12 @@ export default function App() {
         >
           <Network size={18} /> Graph
         </button>
+        <button
+          className={`nav-btn${route.view === "settings" ? " active" : ""}`}
+          onClick={() => go({ view: "settings" })}
+        >
+          <Settings size={18} /> Settings
+        </button>
         <div className="sidebar-foot">
           <a
             href="/api/setup/status"
@@ -87,6 +94,10 @@ export default function App() {
           <Network size={20} />
           <span>Graph</span>
         </button>
+        <button className={`tab${route.view === "settings" ? " active" : ""}`} onClick={() => go({ view: "settings" })}>
+          <Settings size={20} />
+          <span>Settings</span>
+        </button>
       </nav>
       <main className="main">
         {route.view === "library" && <Library go={go} />}
@@ -95,6 +106,7 @@ export default function App() {
         {route.view === "concepts" && <ConceptsView go={go} />}
         {route.view === "concept" && <ConceptView key={route.id} id={route.id} go={go} />}
         {route.view === "graph" && <GraphView go={go} />}
+        {route.view === "settings" && <SettingsView />}
       </main>
     </div>
   );

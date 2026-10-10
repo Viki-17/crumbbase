@@ -147,6 +147,16 @@ GITHUB_BACKUP_BRANCH=main
 `TRANSCRIPT_PROVIDER` options: `auto` (try yt-dlp, fall back to pasting —
 recommended), `yt-dlp` (fail loudly, no fallback), `paste` (never fetch).
 
+Set a Settings-page token (required for `/api/settings*`, fail-closed when
+empty). Generate once and keep it somewhere safe — the UI asks for it once
+per browser tab:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+# append to .env:
+# SETTINGS_TOKEN=<hex>
+```
+
 ---
 
 ## 5. Authenticate the AI sidecar (required for structuring)

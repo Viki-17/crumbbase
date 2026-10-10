@@ -423,6 +423,61 @@ router.get("/search", (req, res) => {
   }
 });
 
+// Settings page API (P2): token-gated. Cookie contents are write-only —
+// responses carry only { fileExists, updatedAt } metadata, never secrets.
+const settingsHandler = require("./handlers/settings");
+
+router.get("/settings", settingsHandler.requireSettingsToken, (req, res) => {
+  try {
+    res.json(settingsHandler.settingsStatus());
+  } catch (err) {
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
+router.put("/settings/provider", settingsHandler.requireSettingsToken, (req, res) => {
+  try {
+    const provider = String((req.body && req.body.provider) || "").trim();
+    if (provider !== "auto" && provider !== "yt-dlp" && provider !== "paste") {
+      return res.status(400).json({ error: "provider must be auto, yt-dlp, or paste." });
+    }
+    const { setSetting, effectiveTranscriptProvider } = require("./db/settings");
+    setSetting("transcript_provider", provider);
+    res.json({ ok: true, transcriptProvider: effectiveTranscriptProvider() });
+  } catch (err) {
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
+router.put("/settings/cookies", settingsHandler.requireSettingsToken, (req, res) => {
+  try {
+    const result = settingsHandler.saveCookiesFile(req.body && req.body.text);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+    res.json({ ok: true, cookies: { fileExists: result.fileExists, updatedAt: result.updatedAt } });
+  } catch (err) {
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
+router.delete("/settings/cookies", settingsHandler.requireSettingsToken, (req, res) => {
+  try {
+    const result = settingsHandler.clearCookiesFile();
+    res.json({ ok: true, cookies: { fileExists: result.fileExists, updatedAt: result.updatedAt } });
+  } catch (err) {
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
+router.post("/settings/cookies/test", settingsHandler.requireSettingsToken, async (req, res) => {
+  try {
+    const result = await settingsHandler.testCookiesFetch(req.body && req.body.url);
+    if (!result.ok) return res.status(502).json({ ok: false, error: result.error });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
 // Anything else under /api: explicit 404 (old Mongo routes are gone).
 router.use((req, res) => {
   res.status(404).json({ error: "Unknown API endpoint (revamp P1)." });

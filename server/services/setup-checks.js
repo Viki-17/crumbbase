@@ -65,13 +65,19 @@ function sqliteStatus() {
 function toolsStatus() {
   const { config } = require("../config");
   const cookies = String((config && config.ytdlpCookies) || "").trim();
+  let uiFileExists = false;
+  try {
+    uiFileExists = require("../handlers/ingest").cookiesFileStatus().fileExists;
+  } catch {
+    uiFileExists = false;
+  }
   return {
     ytdlpAvailable: commandAvailable("yt-dlp"),
     ffmpegAvailable: commandAvailable("ffmpeg", ["-version"]),
-    ytdlpCookiesConfigured: Boolean(cookies),
-    ytdlpCookiesFileExists: cookies
+    ytdlpCookiesConfigured: Boolean(cookies) || uiFileExists,
+    ytdlpCookiesFileExists: uiFileExists || (cookies
       ? require("fs").existsSync(require("path").resolve(process.cwd(), cookies))
-      : false,
+      : false),
   };
 }
 

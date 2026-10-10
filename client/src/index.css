@@ -159,6 +159,16 @@ button.tag-chip { font-family: inherit; }
 .star { background: none; border: none; cursor: pointer; font-size: 16px; color: var(--text-dim); padding: 2px 4px; }
 .star.on { color: var(--yellow); }
 
+/* Settings view (P2): static cards, not clickable */
+.narrow { max-width: 720px; }
+.card.stack { cursor: default; }
+.card.stack:hover { border-color: var(--border); }
+.card.stack h3 { margin: 0 0 4px; font-size: 15px; }
+.card.stack h4 { margin: 14px 0 6px; font-size: 13px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 10px 0; font-size: 13px; }
+.kv span:nth-child(odd) { color: var(--text-dim); }
+.btn-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+
 .pill {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
   border-radius: 20px; padding: 3px 10px; white-space: nowrap;
@@ -323,7 +333,7 @@ h2.page-title { margin: 0 0 6px; font-size: 26px; line-height: 1.25; }
   .mobile-topbar .brand { margin: 0; font-size: 17px; }
 
   .mobile-nav {
-    display: grid; grid-template-columns: repeat(4, 1fr);
+    display: grid; grid-template-columns: repeat(5, 1fr);
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
     background: rgba(23, 26, 33, 0.96);
     backdrop-filter: blur(12px);

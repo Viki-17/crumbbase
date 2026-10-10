@@ -90,24 +90,59 @@ function parseVtt(body) {
   return { text: segments.map((s) => s.text).join(" "), segments };
 }
 
+const COOKIES_FILENAME = "youtube-cookies.txt";
+const MAX_COOKIES_BYTES = 512 * 1024;
+
+// Absolute path of the UI-managed cookies file (<DATA_DIR>/youtube-cookies.txt).
+function uiCookiesPath() {
+  const path = require("path");
+  const { dataDir } = require("../db/db");
+  return path.join(dataDir(), COOKIES_FILENAME);
+}
+
+// Metadata about the cookies file for status displays. NEVER returns contents.
+function cookiesFileStatus() {
+  const fs = require("fs");
+  try {
+    const p = uiCookiesPath();
+    const st = fs.statSync(p);
+    if (!st.isFile()) return { fileExists: false, updatedAt: null };
+    return { fileExists: true, updatedAt: st.mtimeMs };
+  } catch {
+    return { fileExists: false, updatedAt: null };
+  }
+}
+
 async function runYtDlpJson(url) {
   const fs = require("fs");
   const path = require("path");
   let stdout;
   // Authenticated fetch: --cookies beats YouTube's bot challenge on
-  // datacenter IPs. Configured via YTDLP_COOKIES (see config.js); a missing
-  // file is ignored so a stale path can never break unauthenticated fetch.
+  // datacenter IPs. Precedence: UI-managed <DATA_DIR>/youtube-cookies.txt,
+  // then YTDLP_COOKIES from .env. A missing file is ignored so a stale path
+  // can never break unauthenticated fetch.
   const args = ["--dump-single-json", "--no-playlist", "--no-warnings"];
   try {
-    const { config } = require("../config");
-    const cookies = String(config.ytdlpCookies || "").trim();
-    if (cookies) {
-      const resolved = path.resolve(process.cwd(), cookies);
-      if (fs.existsSync(resolved)) args.push("--cookies", resolved);
-      else console.warn(`[ingest] YTDLP_COOKIES file missing (${resolved}); fetching without cookies.`);
+    const candidates = [uiCookiesPath()];
+    try {
+      const { config } = require("../config");
+      const envCookies = String(config.ytdlpCookies || "").trim();
+      if (envCookies) candidates.push(path.resolve(process.cwd(), envCookies));
+    } catch {
+      // config must never break the fetch; fall through to file check
     }
+    const found = candidates.find((p) => {
+      try {
+        return fs.statSync(p).isFile();
+      } catch {
+        return false;
+      }
+    });
+    if (found) args.push("--cookies", found);
+    else if (candidates.length > 1)
+      console.warn("[ingest] cookies file missing; fetching without cookies.");
   } catch {
-    // config must never break the fetch; proceed unauthenticated
+    // cookie resolution must never break the fetch; proceed unauthenticated
   }
   args.push(url);
   try {
@@ -169,7 +204,6 @@ async function handleIngest(job) {
   const sources = require("../db/sources");
   const jobs = require("../db/jobs");
   const events = require("../services/events");
-  const { config } = require("../config");
 
   const source = sources.getSource(job.sourceId);
   if (!source) {
@@ -185,9 +219,12 @@ async function handleIngest(job) {
   };
 
   // Paste-only mode, or non-YouTube (extractors land in P3): wait for paste.
-  if (config.transcriptProvider === "paste" || source.sourceType !== "youtube") {
+  // Provider is DB-overridable at runtime via the Settings page (no restart).
+  const { effectiveTranscriptProvider } = require("../db/settings");
+  const provider = effectiveTranscriptProvider();
+  if (provider === "paste" || source.sourceType !== "youtube") {
     setStatus("awaiting_paste");
-    await log("info", `Waiting for pasted transcript (provider: ${config.transcriptProvider}, type: ${source.sourceType}).`);
+    await log("info", `Waiting for pasted transcript (provider: ${provider}, type: ${source.sourceType}).`);
     return;
   }
 
@@ -229,10 +266,21 @@ async function handleIngest(job) {
     jobs.enqueueJob({ type: "structure", sourceId: source.id, payload: {} });
   } catch (err) {
     const message = err && err.message ? err.message : String(err);
-    if (config.transcriptProvider === "yt-dlp") throw err; // queue backoff retries
+    if (provider === "yt-dlp") throw err; // queue backoff retries
     setStatus("awaiting_paste");
     await log("warn", `Auto-fetch failed (${message}). Paste the transcript to continue.`);
   }
 }
 
-module.exports = { handleIngest, parseVtt, pickCaptionTrack, formatTimestamp, parseVttTimestamp };
+module.exports = {
+  handleIngest,
+  parseVtt,
+  pickCaptionTrack,
+  formatTimestamp,
+  parseVttTimestamp,
+  runYtDlpJson,
+  uiCookiesPath,
+  cookiesFileStatus,
+  COOKIES_FILENAME,
+  MAX_COOKIES_BYTES,
+};

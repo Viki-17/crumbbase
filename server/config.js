@@ -22,6 +22,10 @@ const envSchema = z.object({
   GITHUB_BACKUP_ENABLED: z.string().default("false"),
   GITHUB_BACKUP_REPO: z.string().default(""),
   GITHUB_BACKUP_BRANCH: z.string().default("main"),
+  // Shared token gating the Settings API (/api/settings*). Empty = settings
+  // endpoints fail closed. The browser UI asks for it once per session and
+  // keeps it in sessionStorage (never localStorage, never logged).
+  SETTINGS_TOKEN: z.string().default(""),
 });
 
 const parsed = envSchema.parse(process.env);
@@ -41,6 +45,7 @@ const config = {
   githubBackupEnabled: isTruthy(parsed.GITHUB_BACKUP_ENABLED),
   githubBackupRepo: parsed.GITHUB_BACKUP_REPO,
   githubBackupBranch: parsed.GITHUB_BACKUP_BRANCH,
+  settingsToken: parsed.SETTINGS_TOKEN,
 };
 
 module.exports = { config, envSchema };
