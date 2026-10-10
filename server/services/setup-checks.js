@@ -74,6 +74,11 @@ function toolsStatus() {
   return {
     ytdlpAvailable: commandAvailable("yt-dlp"),
     ffmpegAvailable: commandAvailable("ffmpeg", ["-version"]),
+    // yt-dlp needs a supported JS runtime (deno — the only one it enables by
+    // default; node reports "unsupported") to solve YouTube's n-challenge.
+    // Without it every fetch fails with "The page needs to be reloaded."
+    // even when cookies are valid.
+    denoAvailable: commandAvailable("deno", ["--version"]),
     ytdlpCookiesConfigured: Boolean(cookies) || uiFileExists,
     ytdlpCookiesFileExists: uiFileExists || (cookies
       ? require("fs").existsSync(require("path").resolve(process.cwd(), cookies))

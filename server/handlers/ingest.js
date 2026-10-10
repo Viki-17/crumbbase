@@ -265,7 +265,12 @@ async function handleIngest(job) {
     await log("info", `Transcript saved (${segments.length} segments). Queued for structuring.`);
     jobs.enqueueJob({ type: "structure", sourceId: source.id, payload: {} });
   } catch (err) {
-    const message = err && err.message ? err.message : String(err);
+    let message = err && err.message ? err.message : String(err);
+    // YouTube's bot challenge fails without deno even when cookies are valid —
+    // say so in the log instead of leaving the cryptic yt-dlp text bare.
+    if (/needs to be reloaded/i.test(message)) {
+      message += " (YouTube bot-challenge: install deno so yt-dlp can solve it, and check cookies are fresh.)";
+    }
     if (provider === "yt-dlp") throw err; // queue backoff retries
     setStatus("awaiting_paste");
     await log("warn", `Auto-fetch failed (${message}). Paste the transcript to continue.`);

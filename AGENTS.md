@@ -79,6 +79,14 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
 - Old-stack strings (Mongo/Rabbit/Ollama) in `logs/*.log` are stale file
   content from pre-revamp runs — `truncate -s 0 logs/api-*.log` after restart
   for a clean view. Revamp code has zero references to those services.
+- YouTube fetch needs **deno** (`/usr/local/bin/deno`, installed Oct 2026):
+  yt-dlp must solve YouTube's JS bot-challenge and deno is the only runtime
+  it enables by default (Node 20 reports "unsupported", all others show
+  "unavailable"). Without deno every fetch fails with `The page needs to be
+  reloaded` even with valid cookies. Surfaced as `denoAvailable` in
+  setup/status + Settings; ingest logs name deno when that error hits.
+  Re-run a stuck `awaiting_paste` source by enqueueing a fresh `ingest` job —
+  no endpoint for it, use `enqueueJob({type:'ingest',sourceId})` directly.
 
 ## Sessions
 - Oct 2026 (revamp kickoff): replaced memory; removed Ollama dep + all

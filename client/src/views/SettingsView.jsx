@@ -195,8 +195,8 @@ export default function SettingsView() {
         <div className="kv">
           <span>Runtime</span>
           <span>{(publicStatus && publicStatus.runtime) || "…"}</span>
-          <span>yt-dlp / ffmpeg</span>
-          <span>{tools.ytdlpAvailable ? "yes" : "no"} / {tools.ffmpegAvailable ? "yes" : "no"}</span>
+          <span>yt-dlp / ffmpeg / deno</span>
+          <span>{tools.ytdlpAvailable ? "yes" : "no"} / {tools.ffmpegAvailable ? "yes" : "no"} / {tools.denoAvailable ? "yes" : <b>no — YouTube fetch will fail</b>}</span>
           <span>AI sidecar</span>
           <span>{ai.opencodeReachable ? `reachable (${ai.opencodeServerUrl || ""})` : "unreachable"}</span>
           <span>Backup</span>

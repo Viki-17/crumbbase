@@ -64,6 +64,7 @@ sudo apt install -y git curl python3 build-essential ffmpeg nginx
 | `build-essential` + `python3` | `better-sqlite3` compiles a native module on `npm install` | — |
 | `ffmpeg` | Audio/transcript handling for captures | `ffmpeg -version` |
 | `yt-dlp` | YouTube metadata + captions (primary ingest) | `yt-dlp --version` |
+| `deno` | REQUIRED by yt-dlp to solve YouTube's bot challenge — without it every fetch fails with "The page needs to be reloaded" even with valid cookies (Node does NOT work: yt-dlp reports it "unsupported") | `deno --version` |
 | `opencode` binary | AI sidecar (`opencode serve :4096`) | `opencode --version` |
 | `pm2` | Keeps API + sidecar alive, restarts on reboot | `pm2 --version` |
 | GitHub SSH access | `git clone git@github.com:…` + optional Markdown-mirror backup push | `ssh -T git@github.com` |
@@ -79,6 +80,14 @@ sudo apt install -y nodejs
 sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
   -o /usr/local/bin/yt-dlp
 sudo chmod +x /usr/local/bin/yt-dlp
+
+# deno (REQUIRED — yt-dlp's only supported JS runtime for YouTube's
+# bot challenge; without it fetches fail with "needs to be reloaded")
+sudo curl -fsSL -o /tmp/deno.zip \
+  https://github.com/denoland/deno/releases/latest/download/deno-x86_64-unknown-linux-gnu.zip
+sudo python3 -c "import zipfile; zipfile.ZipFile('/tmp/deno.zip').extractall('/tmp/deno-bin')"
+sudo install -m 755 /tmp/deno-bin/deno /usr/local/bin/deno
+deno --version
 
 # opencode binary (see https://opencode.ai/docs for current installer)
 # e.g.: curl -fsSL https://opencode.ai/install | bash
