@@ -198,7 +198,10 @@ router.delete("/sources/:id", (req, res) => {
   res.json({ deleted: true });
 });
 
-// Manual backup trigger (the structure step also enqueues one per page).
+// Manual backup trigger: bypasses the daily gate (still skips the push when
+// the mirror is unchanged). The structure step also enqueues one per page,
+// and the worker self-schedules a daily check — all funnel through the same
+// at-most-once-a-day, push-only-on-change policy in handlers/backup.js.
 router.post("/backup/run", (req, res) => {
   const job = sqliteJobs.enqueueJob({ type: "backup", sourceId: null, payload: { manual: true } });
   res.status(202).json({ queued: true, jobId: job.id });

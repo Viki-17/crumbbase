@@ -250,7 +250,7 @@ async function handleStructure(job) {
   sourcesRepo.updateSource(source.id, { status: "complete", error: null });
   await log("info", `Learning notes complete (${blockCount} blocks, ${conceptCount} concept links, mirror: ${file}).`);
   events.publishEvent({ type: "sourceStatus", sourceId: source.id, status: "complete" });
-  // Mirror changed → queue a (debounced) backup push.
+  // Mirror changed → queue a (daily-gated) backup push.
   jobs.enqueueJob({ type: "backup", sourceId: source.id, payload: {} });
   // E3 sweep cadence: every 3rd completed capture refreshes cross-source
   // promotion + merge suggestions (cheap: candidates-only single flash call).

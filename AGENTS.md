@@ -181,3 +181,9 @@ props_json) + links(from_block→to_page/block) + tags + jobs + processing_logs
   libron/` + OFL.txt) for prose surfaces only (TLDR, card bodies, questions,
   snippets, transcript, evidence, library preview); UI chrome stays Inter.
   Unused Merriweather dropped from index.html. Verified: vite build green.
+- Oct 2026 (daily backup): at most one push/day, no push when mirror unchanged
+  (`BACKUP_INTERVAL_MS` 24h replaces 5-min debounce; `lastCheckedAt` tracked
+  alongside `lastBackupAt`; manual `/backup/run` bypasses gate but still skips
+  empty pushes). Worker self-schedules an hourly due-check at boot + hourly
+  (`hasPendingJob` guard). Verified live against local bare repo: push →
+  gated skip → manual push on change → manual unchanged-skip, no empty push.

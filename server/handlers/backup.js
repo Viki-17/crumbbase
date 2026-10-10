@@ -1,10 +1,12 @@
 // Backup handler: push the ./data mirror to the private GitHub repo (P1).
-// Runs on `backup` jobs. Flow:
+// Runs on `backup` jobs. Policy: at most one push per day, and no push at
+// all when the mirror is unchanged since the last sync. Flow:
 //   1. disabled or no repo configured → complete immediately (nothing to do)
-//   2. debounce: a successful backup < DEBOUNCE_MS ago → complete, log skip
+//   2. daily gate: last sync (push or unchanged-check) < BACKUP_INTERVAL_MS
+//      ago → complete, log skip. Manual runs bypass this gate.
 //   3. ensure ./data is a git repo with origin = GITHUB_BACKUP_REPO
-//   4. commit mirror files (pages/, assets/, manifest.json) if anything changed
-//   5. push HEAD to the configured branch, record state
+//   4. mirror changed → commit + push, record lastBackupAt
+//      mirror unchanged → record lastCheckedAt, skip the push entirely
 //
 // Never committed: crumbbase.db* and .backup-state.json (see DATA_GITIGNORE,
 // written idempotently into ./data/.gitignore). Auth comes from the
@@ -17,7 +19,8 @@ const path = require("path");
 
 const execFileAsync = promisify(execFile);
 
-const DEBOUNCE_MS = 5 * 60 * 1000;
+// Once-a-day backup cadence. Manual `POST /api/backup/run` jobs bypass it.
+const BACKUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const DATA_GITIGNORE = `# Crumbbase backup repo: mirror only, never the runtime DB.
 *.db
 *.db-wal
@@ -32,10 +35,28 @@ function statePath(dir) {
 
 function readState(dir) {
   try {
-    return JSON.parse(fs.readFileSync(statePath(dir), "utf8"));
+    return {
+      lastBackupAt: 0,
+      lastCheckedAt: 0,
+      lastCommit: null,
+      lastError: null,
+      ...JSON.parse(fs.readFileSync(statePath(dir), "utf8")),
+    };
   } catch {
-    return { lastBackupAt: 0, lastCommit: null, lastError: null };
+    return { lastBackupAt: 0, lastCheckedAt: 0, lastCommit: null, lastError: null };
   }
+}
+
+// Last time we synced with the remote for any reason (push or verified
+// unchanged). Drives the daily gate; old states without lastCheckedAt fall
+// back to lastBackupAt.
+function lastSyncAt(state) {
+  return Math.max(state.lastBackupAt || 0, state.lastCheckedAt || 0);
+}
+
+// True when a sync is due (never synced, or interval elapsed).
+function backupDue(dir, now = Date.now()) {
+  return now - lastSyncAt(readState(dir)) >= BACKUP_INTERVAL_MS;
 }
 
 function writeState(dir, patch) {
@@ -93,9 +114,15 @@ async function handleBackup(job) {
   }
 
   const state = readState(dir);
-  if (state.lastBackupAt && Date.now() - state.lastBackupAt < DEBOUNCE_MS) {
-    await log("info", "Backup debounced (a successful backup ran < 5 min ago).");
-    return { skipped: true, debounced: true };
+  const manual = Boolean(job.payload && job.payload.manual);
+  if (!manual && !backupDue(dir)) {
+    const nextIn = Math.max(
+      0,
+      BACKUP_INTERVAL_MS - (Date.now() - lastSyncAt(state)),
+    );
+    const nextHrs = (nextIn / 3_600_000).toFixed(1);
+    await log("info", `Backup skipped (last sync < 24h ago; next check in ~${nextHrs}h).`);
+    return { skipped: true, gated: true };
   }
 
   const repo = config.githubBackupRepo.trim();
@@ -105,32 +132,35 @@ async function handleBackup(job) {
     await ensureRepo(dir, repo, branch);
 
     const status = await git(dir, ["status", "--porcelain", "--", "pages", "assets", "manifest.json", ".gitignore"]);
+    if (!status) {
+      writeState(dir, { lastCheckedAt: Date.now(), lastError: null });
+      await log("info", "Backup: mirror unchanged since last sync — nothing to push.");
+      events.publishEvent({ type: "backupSkipped", sourceId: job.sourceId || null });
+      return { pushed: false, unchanged: true };
+    }
+
+    // git add fails on missing pathspecs (e.g. no assets/ yet) — add what exists.
+    const addPaths = ["pages", ".gitignore"]
+      .concat(fs.existsSync(path.join(dir, "manifest.json")) ? ["manifest.json"] : [])
+      .concat(fs.existsSync(path.join(dir, "assets")) ? ["assets"] : []);
+    await git(dir, ["add", "--", ...addPaths]);
+    const changed = await git(dir, ["status", "--porcelain"]);
     let commit = state.lastCommit;
-    if (status) {
-      // git add fails on missing pathspecs (e.g. no assets/ yet) — add what exists.
-      const addPaths = ["pages", ".gitignore"]
-        .concat(fs.existsSync(path.join(dir, "manifest.json")) ? ["manifest.json"] : [])
-        .concat(fs.existsSync(path.join(dir, "assets")) ? ["assets"] : []);
-      await git(dir, ["add", "--", ...addPaths]);
-      const changed = await git(dir, ["status", "--porcelain"]);
-      if (changed) {
-        const count = await git(dir, ["ls-files", "pages"]).then(
-          (out) => out.split("\n").filter(Boolean).length,
-          () => 0,
-        );
-        await git(dir, [
-          "-c", "user.name=crumbbase",
-          "-c", "user.email=crumbbase@local",
-          "commit", "-m", `backup: ${new Date().toISOString()} (${count} pages)`,
-        ]);
-      }
-    } else {
-      await log("info", "Backup: mirror unchanged, nothing to commit.");
+    if (changed) {
+      const count = await git(dir, ["ls-files", "pages"]).then(
+        (out) => out.split("\n").filter(Boolean).length,
+        () => 0,
+      );
+      await git(dir, [
+        "-c", "user.name=crumbbase",
+        "-c", "user.email=crumbbase@local",
+        "commit", "-m", `backup: ${new Date().toISOString()} (${count} pages)`,
+      ]);
     }
 
     await git(dir, ["push", "-u", "origin", `HEAD:${branch}`]);
     commit = await git(dir, ["rev-parse", "HEAD"]);
-    writeState(dir, { lastBackupAt: Date.now(), lastCommit: commit, lastError: null });
+    writeState(dir, { lastBackupAt: Date.now(), lastCheckedAt: Date.now(), lastCommit: commit, lastError: null });
     await log("info", `Backup pushed (${commit.slice(0, 8)} → ${branch}).`);
     events.publishEvent({ type: "backupDone", commit, sourceId: job.sourceId || null });
     return { pushed: true, commit };
@@ -141,4 +171,4 @@ async function handleBackup(job) {
   }
 }
 
-module.exports = { handleBackup, DEBOUNCE_MS, readState };
+module.exports = { handleBackup, BACKUP_INTERVAL_MS, backupDue, lastSyncAt, readState };

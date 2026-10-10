@@ -113,6 +113,17 @@ function getQueueDepth() {
   return { queued: count("queued"), running: count("running"), failed: count("failed") };
 }
 
+// True when a job of this type is already waiting or running — lets slow
+// schedulers (e.g. the daily backup check) avoid piling up duplicates.
+function hasPendingJob(type) {
+  const row = getDb()
+    .prepare(
+      "SELECT COUNT(*) AS c FROM jobs WHERE type = ? AND status IN ('queued', 'running')",
+    )
+    .get(type);
+  return row.c > 0;
+}
+
 function addLog({ sourceId = null, level = "info", message }) {
   const db = getDb();
   const row = {
@@ -149,6 +160,7 @@ module.exports = {
   markJobFailed,
   markStaleRunningJobsQueued,
   getQueueDepth,
+  hasPendingJob,
   addLog,
   getLogsForSource,
 };

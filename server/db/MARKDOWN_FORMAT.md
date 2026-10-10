@@ -12,7 +12,7 @@ data/
   pages/<page-id>.md      # one file per page
   assets/<source-id>.*    # thumbnails etc.
   manifest.json           # { version, exported_at, pages: [{id, file, updated_at}] }
-  .backup-state.json      # written by the backup job (lastBackupAt, lastCommit, lastError)
+  .backup-state.json      # written by the backup job (lastBackupAt, lastCheckedAt, lastCommit, lastError)
 ```
 
 ## Page file

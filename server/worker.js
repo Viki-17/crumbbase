@@ -32,6 +32,25 @@ async function processJob(job) {
 
 let running = false;
 let timer = null;
+let backupTimer = null;
+
+// Once-a-day backup cadence, self-scheduled: every hour (and once at boot)
+// check whether a sync is due and, if so, queue one `backup` job. The job
+// itself re-checks the daily gate and skips the push when the mirror is
+// unchanged — so this can never cause more than one push per day.
+function maybeScheduleBackup() {
+  try {
+    const { config } = require("./config");
+    if (!config.githubBackupEnabled || !config.githubBackupRepo.trim()) return;
+    const { dataDir } = require("./db/db");
+    const backup = require("./handlers/backup");
+    if (!backup.backupDue(dataDir())) return;
+    if (jobsQueue.hasPendingJob("backup")) return;
+    jobsQueue.enqueueJob({ type: "backup", sourceId: null, payload: { scheduled: true } });
+  } catch (err) {
+    console.error("[Worker] backup schedule check failed:", err && err.message ? err.message : err);
+  }
+}
 
 async function runWorkerTick() {
   if (running) return;
@@ -83,6 +102,8 @@ async function runWorkerTick() {
 function stopWorker() {
   if (timer) clearInterval(timer);
   timer = null;
+  if (backupTimer) clearInterval(backupTimer);
+  backupTimer = null;
 }
 
 async function startWorker() {
@@ -92,6 +113,9 @@ async function startWorker() {
     void runWorkerTick();
   }, jobsQueue.POLL_INTERVAL_MS);
   void runWorkerTick();
+  // Daily backup check: hourly cadence + one check at boot.
+  backupTimer = setInterval(maybeScheduleBackup, 60 * 60 * 1000);
+  maybeScheduleBackup();
   console.log("[Worker] Service Started (SQLite queue)");
 }
 

@@ -75,11 +75,12 @@ function readBackupState(dir) {
     const state = JSON.parse(raw);
     return {
       lastBackupAt: state.lastBackupAt || null,
+      lastCheckedAt: state.lastCheckedAt || null,
       lastCommit: state.lastCommit || null,
       lastError: state.lastError || null,
     };
   } catch {
-    return { lastBackupAt: null, lastCommit: null, lastError: null };
+    return { lastBackupAt: null, lastCheckedAt: null, lastCommit: null, lastError: null };
   }
 }
 
