@@ -15,6 +15,7 @@ const DISPATCH = {
   structure: require("./handlers/structure").handleStructure,
   backup: require("./handlers/backup").handleBackup,
   link_index: require("./handlers/concepts").handleLinkIndex,
+  sync: require("./handlers/sync").handleSync,
 };
 
 async function processJob(job) {

@@ -131,7 +131,7 @@ async function handleBackup(job) {
     fs.mkdirSync(path.join(dir, "pages"), { recursive: true });
     await ensureRepo(dir, repo, branch);
 
-    const status = await git(dir, ["status", "--porcelain", "--", "pages", "assets", "manifest.json", ".gitignore"]);
+    const status = await git(dir, ["status", "--porcelain", "--", "pages", "assets", "manifest.json", "index.md", ".gitignore"]);
     if (!status) {
       writeState(dir, { lastCheckedAt: Date.now(), lastError: null });
       await log("info", "Backup: mirror unchanged since last sync — nothing to push.");
@@ -142,6 +142,7 @@ async function handleBackup(job) {
     // git add fails on missing pathspecs (e.g. no assets/ yet) — add what exists.
     const addPaths = ["pages", ".gitignore"]
       .concat(fs.existsSync(path.join(dir, "manifest.json")) ? ["manifest.json"] : [])
+      .concat(fs.existsSync(path.join(dir, "index.md")) ? ["index.md"] : [])
       .concat(fs.existsSync(path.join(dir, "assets")) ? ["assets"] : []);
     await git(dir, ["add", "--", ...addPaths]);
     const changed = await git(dir, ["status", "--porcelain"]);
@@ -167,8 +168,14 @@ async function handleBackup(job) {
   } catch (err) {
     const message = err && err.message ? err.message : String(err);
     writeState(dir, { lastError: message.slice(0, 500) });
-    throw new Error(`Backup failed: ${message}`);
+    // Diverged histories (fresh machine, hub ahead) are not corruption — but
+    // a blind push would clobber the hub, so fail loudly and point at sync,
+    // which merges content-first and is safe to retry.
+    const hint = /non-fast-forward|fetch first|\[rejected\]/.test(message)
+      ? " (hub has history this machine lacks — run POST /api/sync/run to merge, then retry)"
+      : "";
+    throw new Error(`Backup failed${hint}: ${message}`);
   }
 }
 
-module.exports = { handleBackup, BACKUP_INTERVAL_MS, backupDue, lastSyncAt, readState };
+module.exports = { handleBackup, BACKUP_INTERVAL_MS, backupDue, lastSyncAt, readState, ensureRepo, git };

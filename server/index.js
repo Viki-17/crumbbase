@@ -207,6 +207,20 @@ router.post("/backup/run", (req, res) => {
   res.status(202).json({ queued: true, jobId: job.id });
 });
 
+// Manual hub sync: pull missing/newer pages from the backup repo into this
+// machine's DB (newer-wins per canonical URL), then push the union back.
+// Requires backup configured — without a hub there is nothing to sync with.
+router.post("/sync/run", (req, res) => {
+  if (!config.githubBackupEnabled || !config.githubBackupRepo.trim()) {
+    return res.status(400).json({ error: "Sync needs GITHUB_BACKUP_ENABLED=true and GITHUB_BACKUP_REPO set." });
+  }
+  if (sqliteJobs.hasPendingJob("sync")) {
+    return res.status(409).json({ error: "A sync is already queued or running." });
+  }
+  const job = sqliteJobs.enqueueJob({ type: "sync", sourceId: null, payload: { manual: true } });
+  res.status(202).json({ queued: true, jobId: job.id });
+});
+
 router.patch("/sources/:id", (req, res) => {
   const source = sourcesRepo.getSource(req.params.id);
   if (!source) return res.status(404).json({ error: "Source not found." });

@@ -259,3 +259,36 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   rsync dist); share-target still pending. Gotcha: local preview ports collide
   with other projects' vite servers — verify with `--strictPort --host` + byte
   compare, not just status codes.
+- Oct 2026 (hub sync): manual content sync between machines via the backup
+  repo as hub (`POST /api/sync/run` → `sync` job, ⇅ Sync button in Library).
+  Identity is `canonical_url` (UUIDs are per-machine). New pieces:
+  `services/mirror-import.js` (parser half of MARKDOWN_FORMAT — block ids
+  reused for stable re-export, tags/aliases/timestamps/zettel edges, paste-vs-
+  caption origin heuristic, per-page transactions), `handlers/sync.js` (fetch +
+  `git show` pull, newer-wins by `updated_at`, then manual backup push),
+  `006_sync_job.sql` (jobs CHECK rebuild, data-preserving). Renderer now emits
+  `<!-- source: -->` on zettel bullets (edge survived reimport); `addBlock`/
+  `createPage` accept explicit ids; backup push failures name divergence +
+  point at sync; sync push auto-merges (`-X ours` + manifest entry-union, safe
+  because pull already resolved content). Verified on scratch DBs + file://
+  hub + live boot: 2+5 union both directions, hub-newer update applied,
+  idempotent re-run (all skipped, no empty push), FTS/concept-link rebuild on
+  imports, `.db` never tracked, 006 migrates a real-DB copy intact, 400/202/
+  409 routes, vite build + eslint clean. Server deploy needs only restart
+  (migration auto-runs); client button rides the normal dist flow.
+- Oct 2026 (OKF switch): mirror is now a conformant Google OKF v0.2 bundle
+  (`type: Video Notes`, description/resource/tags/sources/generated/status,
+  `pipeline_status` rename — old `status` collided with lifecycle, `## Tags`
+  section dropped for frontmatter `tags:`, bundle-root `index.md` with
+  `okf_version`). New dep `js-yaml` (pure JS). Importer is dual-format (YAML
+  parse, legacy ## Tags/exported_at/status fallbacks), preserves `link_state`
+  across replace-imports (no link_index AI storm on identical pages), adopts
+  hub page ids (no parallel manifest entries), prunes stale id entries/files.
+  Backup tracks `index.md`; sync merge regenerates (never merges) the index.
+  Scripts: `reexport-okf.js` (flag day) + `check-okf.js` (§11 self-check).
+  Runbook: `OKF_SWITCH_RUNBOOK.md` (pre-flight → code-everywhere-first →
+  canary → re-export → sync → rollback). Verified on scratch + file-hub +
+  live boot + real-DB copy: lossless legacy import (27/27 tags), round-trip
+  stable, old-hub sync converts + converges, second sync all-skipped, DB
+  counts intact, no migration (rollback = revert + restart). NOT YET DEPLOYED
+  — prod still on old format; run the runbook top to bottom.

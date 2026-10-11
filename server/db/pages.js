@@ -24,9 +24,9 @@ function mapBlock(row) {
   };
 }
 
-function createPage({ sourceId, title }) {
+function createPage({ sourceId, title, id = null }) {
   const now = nowMs();
-  const page = { id: randomUUID(), source_id: sourceId, title: title || "Untitled", created_at: now, updated_at: now };
+  const page = { id: id || randomUUID(), source_id: sourceId, title: title || "Untitled", created_at: now, updated_at: now };
   getDb()
     .prepare("INSERT INTO pages (id, source_id, title, created_at, updated_at) VALUES (@id, @source_id, @title, @created_at, @updated_at)")
     .run(page);
@@ -68,10 +68,10 @@ const replacePageForSource = (function () {
   };
 })();
 
-function addBlock({ pageId, parentId = null, position = 0, content = "", props = {} }) {
+function addBlock({ pageId, parentId = null, position = 0, content = "", props = {}, id = null }) {
   const now = nowMs();
   const row = {
-    id: randomUUID(),
+    id: id || randomUUID(),
     page_id: pageId,
     parent_id: parentId,
     position,

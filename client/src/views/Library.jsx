@@ -59,9 +59,10 @@ export default function Library({ go }) {
   const [statusF, setStatusF] = useState("all");
   const [starredOnly, setStarredOnly] = useState(false);
   const [sort, setSort] = useState("updated");
+  const [syncing, setSyncing] = useState(false);
 
-  const fetchSources = useCallback(async () => {
-    setLoading(true);
+  const fetchSources = useCallback(async (quiet = false) => {
+    if (!quiet) setLoading(true);
     try {
       const res = await api.get("/sources", {
         params: {
@@ -74,9 +75,9 @@ export default function Library({ go }) {
       });
       setSources(res.data.sources || []);
     } catch (err) {
-      toast.error(apiError(err, "Failed to load library"));
+      if (!quiet) toast.error(apiError(err, "Failed to load library"));
     } finally {
-      setLoading(false);
+      if (!quiet) setLoading(false);
     }
   }, [q, statusF, starredOnly, sort]);
 
@@ -117,10 +118,39 @@ export default function Library({ go }) {
     }
   };
 
+  // Manual hub sync: the worker pulls + imports, then pushes. Refresh quietly
+  // a few times so newly synced sources appear without a loading flash.
+  const syncNow = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      await api.post("/sync/run");
+      toast.success("Sync started — pulling hub changes, then pushing.");
+      for (let i = 0; i < 6; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        await fetchSources(true);
+      }
+    } catch (err) {
+      toast.error(apiError(err, "Sync failed"));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div>
       <div className="view-head">
         <h1>Library</h1>
+        <span className="spacer" />
+        <button
+          type="button"
+          className="btn ghost"
+          onClick={syncNow}
+          disabled={syncing}
+          title="Pull missing/newer pages from the backup hub, then push"
+        >
+          {syncing ? "Syncing…" : "⇅ Sync"}
+        </button>
       </div>
       <form className="capture-bar" onSubmit={capture}>
         <input
