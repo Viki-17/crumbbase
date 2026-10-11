@@ -111,6 +111,16 @@ export default function SourceView({ id, go }) {
     }
   };
 
+  const copyLink = async () => {
+    if (!detail || !detail.url) return;
+    try {
+      await navigator.clipboard.writeText(detail.url);
+      toast.success("Video link copied.");
+    } catch {
+      toast.error("Copy failed.");
+    }
+  };
+
   const [zettelBusy, setZettelBusy] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
@@ -212,6 +222,7 @@ export default function SourceView({ id, go }) {
           </button>
         )}
         <button className="btn ghost" onClick={copyPage} title="Copy notes as markdown">Copy MD</button>
+        <button className="btn ghost" onClick={copyLink} title="Copy video link">Copy link</button>
         <a className="btn ghost" href={detail.url} target="_blank" rel="noreferrer">Open ↗</a>
         <button className="btn ghost danger" onClick={remove}>Delete</button>
       </div>
