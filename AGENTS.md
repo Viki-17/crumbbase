@@ -237,6 +237,17 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   (page + 12 search hits, then deleted), web + nginx API agree. Completed
   truncated `DEPLOY.md` (§7 tail + §8 nginx + §9 update flow + §10
   troubleshooting) and added Deployment section + gotchas here.
+- Oct 2026 (ops: solace stop + opencode retry): stopped pm2 `solace` (clean
+  SIGINT shutdown, `pm2 save`); it is unrelated to crumbbase (own Telegram/
+  Mongo/Ollama stack). crumbbase-api 47 restarts is a historical pm2 counter —
+  process stable, err log empty. Two `structure` jobs failed 4x with
+  `[OpenCode] Empty response from model` (transient model-side empties, not a
+  sidecar outage — PONG + real-prompt tests passed); manual reset to
+  `processing` + fresh `structure` jobs completed both (31 + 69 blocks).
+  LANDMINE: a `git pull` fast-forwarded the tree to OKF `aedeed6` while pm2
+  still runs pre-OKF code, and `npm install` was never re-run (`js-yaml`
+  missing). Do NOT `pm2 restart crumbbase-api` until deps are installed, and
+  even then it deploys OKF server code — follow `OKF_SWITCH_RUNBOOK.md`.
 - Oct 2026 (settings page): sidebar `setup status` link + new Settings view
   (desktop sidebar, 5th mobile tab): status dashboard, transcript-provider
   select (DB `app_settings` via `005_settings.sql`, effective immediately, no
