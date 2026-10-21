@@ -88,9 +88,11 @@ function describeTldr(tldr) {
 // props.kind in this fixed order (position order preserved inside sections).
 const SECTIONS = [
   { kind: "tldr", heading: "TL;DR", bullet: false },
+  // Detailed summary is multiline prose: content verbatim, then the block id
+  // on its own comment line (importer re-joins paragraphs into one block).
+  { kind: "detailed-summary", heading: "Detailed summary", bullet: false, multiline: true },
   { kind: "key-idea", heading: "Key ideas", bullet: true },
   { kind: "claim", heading: "Notable claims", bullet: true },
-  { kind: "question", heading: "Follow-up questions", bullet: true },
   { kind: "zettel", heading: "Zettels", bullet: true },
 ];
 
@@ -144,6 +146,9 @@ function renderMarkdown({ source, page, blocks, tags, concepts = [], model }) {
     for (const b of items) {
       if (section.bullet) {
         lines.push(renderBlockLine(b, source.url));
+      } else if (section.multiline) {
+        lines.push(String(b.content).trim());
+        lines.push(`<!-- block:${b.id} -->`, "");
       } else {
         lines.push(`${b.content} <!-- block:${b.id} -->`, "");
       }

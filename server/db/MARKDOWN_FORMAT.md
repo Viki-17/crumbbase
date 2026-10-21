@@ -55,6 +55,10 @@ pipeline_status: complete
 ## TL;DR
 One-paragraph gist. <!-- block:<uuid> -->
 
+## Detailed summary
+Dense 300-600 word prose (paragraphs separated by blank lines).
+<!-- block:<uuid> -->
+
 ## Key ideas
 - Idea text with [12:34](https://...?t=754) deep-link. <!-- block:<uuid> -->
   <!-- aliases: alternate phrasing one; alternate phrasing two -->
@@ -62,9 +66,6 @@ One-paragraph gist. <!-- block:<uuid> -->
 
 ## Notable claims
 - Claim text (support). <!-- block:<uuid> -->
-
-## Follow-up questions
-- Question? <!-- block:<uuid> -->
 
 ## Zettels
 - **Title:** body <!-- block:<uuid> --> <!-- source:<uuid> -->
@@ -100,6 +101,9 @@ are ISO-8601 UTC in `generated.at`. The sync newer-wins clock reads
 
 1. **Identity:** every AI/transcript bullet ends its first line with
    `<!-- block:<uuid> -->`. That uuid IS the block id — stable across exports.
+   `## Detailed summary` is the exception: prose first, then the id on its
+   own `<!-- block:<uuid> -->` line; the importer re-joins the paragraphs
+   into one block.
 2. **Tree:** bullets nested under a bullet become child blocks (`parent_id`).
    Top-level bullets attach to the page root in file order (`position`).
 3. **Aliases:** an `<!-- aliases: a; b -->` comment line directly under a bullet

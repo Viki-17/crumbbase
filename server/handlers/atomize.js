@@ -55,15 +55,13 @@ function draftZettelsLocal(blocks = []) {
   const cards = [];
   for (const b of blocks) {
     const kind = (b.props && b.props.kind) || "note";
-    if (kind !== "key-idea" && kind !== "claim" && kind !== "question") continue;
+    if (kind !== "key-idea" && kind !== "claim") continue;
     let title = "";
     let body = cleanText(b.content);
     const m = String(b.content || "").match(/^\*\*(.+?)\*\*:?\s*([\s\S]*)$/);
     if (m) {
       title = cleanText(m[1]).replace(/:$/, "").slice(0, 60);
       body = cleanText(m[2]);
-    } else if (kind === "question") {
-      title = "Open question";
     } else if (kind === "claim") {
       title = body.slice(0, 48);
       if (body.length > 48) title = `${title.trim()}…`;
@@ -122,7 +120,7 @@ function buildAtomizePrompt({ title, creator, items }) {
 
 async function draftZettelsWithAI({ source, blocks }) {
   const items = blocks
-    .filter((b) => ["key-idea", "claim", "question"].includes((b.props && b.props.kind) || ""))
+    .filter((b) => ["key-idea", "claim"].includes((b.props && b.props.kind) || ""))
     .map((b) => ({ id: b.id, kind: (b.props && b.props.kind) || "note", content: b.content }));
   if (items.length === 0) return { cards: [], origin: "ai-empty" };
   const prompt = buildAtomizePrompt({ title: source.title, creator: source.creator, items });

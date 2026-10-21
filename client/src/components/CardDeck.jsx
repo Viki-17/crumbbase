@@ -5,7 +5,7 @@ import { stripHashtags, parseKeyIdea } from "./Outline.jsx";
 import ConceptChips from "./ConceptChips.jsx";
 
 // Visual Zettel preview (Stage 1): same blocks, card-shaped.
-// No DB change — each card is one key-idea / claim / question block
+// No DB change — each card is one key-idea / claim block
 // truncated to bite size with deep-link + copy. True atomic split lands
 // in Stage 2 (atomize job).
 function toCards(blocks = []) {
@@ -13,7 +13,7 @@ function toCards(blocks = []) {
   for (const b of blocks) {
     const kind = (b.props && b.props.kind) || "note";
     if (kind === "tldr" || kind === "transcript-chunk") continue;
-    if (kind !== "key-idea" && kind !== "claim" && kind !== "question" && kind !== "zettel") continue;
+    if (kind !== "key-idea" && kind !== "claim" && kind !== "zettel") continue;
     let title = "";
     let body = stripHashtags(b.content);
     if (kind === "zettel") {
@@ -28,8 +28,6 @@ function toCards(blocks = []) {
       const parsed = parseKeyIdea(b.content);
       title = parsed.title;
       body = parsed.body;
-    } else if (kind === "question") {
-      title = "Open question";
     } else if (kind === "claim") {
       title = "Claim";
     }

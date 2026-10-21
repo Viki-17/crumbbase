@@ -4,7 +4,7 @@
 const { getDb, closeDb } = require("../server/db/db");
 const pagesRepo = require("../server/db/pages");
 
-const NOTE_KINDS = new Set(["tldr", "key-idea", "claim", "question", "zettel"]);
+const NOTE_KINDS = new Set(["tldr", "detailed-summary", "key-idea", "claim", "zettel"]);
 
 function main() {
   const db = getDb();

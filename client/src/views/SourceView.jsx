@@ -123,6 +123,7 @@ export default function SourceView({ id, go }) {
 
   const [zettelBusy, setZettelBusy] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
+  const [summaryBusy, setSummaryBusy] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
 
   const makeCards = async () => {
@@ -165,10 +166,25 @@ export default function SourceView({ id, go }) {
     }
   };
 
+  const backfillSummary = async () => {
+    if (summaryBusy) return;
+    setSummaryBusy(true);
+    try {
+      const res = await api.post(`/sources/${id}/summary/backfill`);
+      toast.success(res.data && res.data.skipped ? "Detailed summary already present." : "Detailed summary added.");
+      load();
+    } catch (err) {
+      toast.error(apiError(err, "Summary backfill failed"));
+    } finally {
+      setSummaryBusy(false);
+    }
+  };
+
   if (loading) return <div className="loading">Loading…</div>;
   if (!detail) return <div className="empty">Source not found.</div>;
 
   const st = STATUS[detail.status] || STATUS.queued;
+  const hasSummary = !!(page && page.blocks && page.blocks.some((b) => b.props && b.props.kind === "detailed-summary"));
 
   return (
     <div className="source-wrap">
@@ -214,6 +230,11 @@ export default function SourceView({ id, go }) {
         {detail.status === "complete" && (
           <button className="btn" onClick={makeCards} disabled={zettelBusy} title="Split key ideas into bite-sized Zettel cards (AI if sidecar up, else local)">
             {zettelBusy ? "Making…" : "✨ Make cards"}
+          </button>
+        )}
+        {detail.status === "complete" && page && !hasSummary && (
+          <button className="btn ghost" onClick={backfillSummary} disabled={summaryBusy} title="Generate the dense Detailed summary for this page (one AI call, keeps cards and links)">
+            {summaryBusy ? "Summarizing…" : "✨ Detailed summary"}
           </button>
         )}
         {detail.status === "complete" && (!page || !page.concepts || page.concepts.length === 0) && (

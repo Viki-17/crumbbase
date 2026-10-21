@@ -5,12 +5,6 @@ import { fmtTime, deepLink } from "../lib.js";
 // Read-only outline renderer (P1 polish): tag-spam stripped on render,
 // sections rendered as bite-sized cards. Tags live in one row under the
 // header (SourceView) — never repeated per block.
-const SECTION_ORDER = [
-  ["tldr", null], // rendered as lede, no heading
-  ["key-idea", "Key ideas"],
-  ["claim", "Notable claims"],
-  ["question", "Follow-up questions"],
-];
 
 export function stripHashtags(text) {
   return String(text || "")
@@ -117,9 +111,9 @@ export default function Outline({ blocks = [], tags = [], sourceUrl, sourceTitle
   }
   const chunks = byKind.get("transcript-chunk") || [];
   const tldrBlocks = byKind.get("tldr") || [];
+  const summaryBlocks = byKind.get("detailed-summary") || [];
   const ideas = byKind.get("key-idea") || [];
   const claims = byKind.get("claim") || [];
-  const questions = byKind.get("question") || [];
   const zettels = byKind.get("zettel") || [];
 
   return (
@@ -132,6 +126,21 @@ export default function Outline({ blocks = [], tags = [], sourceUrl, sourceTitle
               <ReactMarkdown>{stripHashtags(b.content)}</ReactMarkdown>
               <div className="tldr-actions">
                 <Timestamp url={sourceUrl} seconds={b.props && b.props.timestamp} />
+                <CopyBtn text={stripHashtags(b.content)} />
+                <ConceptChips concepts={conceptsByBlock.get(b.id)} onOpen={onConceptClick} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {summaryBlocks.length > 0 && (
+        <div className="tldr-callout">
+          <div className="outline-section">Detailed summary</div>
+          {summaryBlocks.map((b) => (
+            <div key={b.id} className="outline-tldr">
+              <ReactMarkdown>{stripHashtags(b.content)}</ReactMarkdown>
+              <div className="tldr-actions">
                 <CopyBtn text={stripHashtags(b.content)} />
                 <ConceptChips concepts={conceptsByBlock.get(b.id)} onOpen={onConceptClick} />
               </div>
@@ -169,24 +178,6 @@ export default function Outline({ blocks = [], tags = [], sourceUrl, sourceTitle
         </div>
       )}
 
-      {questions.length > 0 && (
-        <div>
-          <div className="outline-section">Follow-up questions · {questions.length}</div>
-          <ul className="question-list">
-            {questions.map((b) => (
-              <li key={b.id} className="question-card">
-                <span className="q-badge">?</span>
-                <span className="q-text">
-                  <ReactMarkdown>{stripHashtags(b.content)}</ReactMarkdown>
-                </span>
-                <CopyBtn text={stripHashtags(b.content)} />
-                <ConceptChips concepts={conceptsByBlock.get(b.id)} onOpen={onConceptClick} compact />
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       {zettels.length > 0 && (
         <div>
           <div className="outline-section">Zettels · {zettels.length} — bite-sized, link back to source</div>
@@ -203,10 +194,6 @@ export default function Outline({ blocks = [], tags = [], sourceUrl, sourceTitle
           </div>
         </div>
       )}
-
-      {/* Fallback: any other kinds render in mirror order */}
-      {SECTION_ORDER.every(([k]) => k === "tldr" || k === "key-idea" || k === "claim" || k === "question")
-        ? null : null}
 
       {tags.length > 0 && (
         <div className="tag-row">

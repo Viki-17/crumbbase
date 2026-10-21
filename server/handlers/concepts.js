@@ -74,7 +74,7 @@ function cleanText(s) {
 
 async function extractEntities({ source, blocks }) {
   const items = blocks
-    .filter((b) => ["tldr", "key-idea", "claim", "question", "zettel"].includes((b.props && b.props.kind) || ""))
+    .filter((b) => ["tldr", "detailed-summary", "key-idea", "claim", "zettel"].includes((b.props && b.props.kind) || ""))
     .map((b) => ({ kind: (b.props && b.props.kind) || "note", content: cleanText(b.content) }));
   if (items.length === 0) return { entities: [], origin: "empty" };
   try {

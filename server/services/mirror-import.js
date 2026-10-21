@@ -120,9 +120,11 @@ function parseBulletLine(line) {
 
 const SECTION_KIND = {
   "tl;dr": "tldr",
+  "detailed summary": "detailed-summary",
   "key ideas": "key-idea",
   "notable claims": "claim",
-  "follow-up questions": "question",
+  // "follow-up questions" deliberately unmapped (dropped Oct 2026): legacy
+  // sections parse as kind null and are skipped, so old mirrors converge.
   zettels: "zettel",
   transcript: "transcript-chunk",
   tags: "tags", // metadata section (no blocks); null would wrongly skip it
@@ -134,11 +136,35 @@ function blankBullet(kind) {
 
 // Parse the mirror body into ordered sections. Nested `- ` bullets (2-space
 // indent per level) become children via parentId indexes resolved at insert.
+// `detailed-summary` is multiline prose (spec rule 1 exception): content lines
+// accumulate across blank-line paragraph breaks and flush into ONE block when
+// the trailing standalone `<!-- block:uuid -->` line arrives.
 function parseSections(body) {
   const sections = [];
   let current = null;
   let lastBullet = null;
+  const flushSummary = () => {
+    const buf = current && current.buf;
+    if (!buf) return;
+    const paras = [...buf.paras];
+    if (buf.cur.length > 0) paras.push(buf.cur.join(" "));
+    const content = paras.join("\n\n").trim();
+    if (content) {
+      current.bullets.push({
+        content,
+        blockId: buf.blockId ? asUuidOrFresh(buf.blockId) : randomUUID(),
+        sourceBlockId: null,
+        aliases: [...buf.aliases],
+        timestamp: null,
+        kind: current.kind,
+        level: 0,
+      });
+      lastBullet = current.bullets[current.bullets.length - 1];
+    }
+    current.buf = null;
+  };
   const push = () => {
+    if (current && current.kind === "detailed-summary" && current.buf) flushSummary();
     if (current && (current.bullets.length > 0 || current.kind === "tags")) sections.push(current);
   };
   for (const rawLine of String(body || "").split(/\r?\n/)) {
@@ -146,11 +172,72 @@ function parseSections(body) {
     if (heading) {
       push();
       const name = heading[1].trim().toLowerCase();
-      current = { name, kind: SECTION_KIND[name] || null, bullets: [], tags: [] };
+      current = { name, kind: SECTION_KIND[name] || null, bullets: [], tags: [], buf: null };
       lastBullet = null;
       continue;
     }
     if (!current || current.kind === null) continue; // ## Source / ## Concepts / unknown: skipped
+    if (current.kind === "detailed-summary") {
+      if (!current.buf) current.buf = { paras: [], cur: [], blockId: null, aliases: [] };
+      const buf = current.buf;
+      const solo = rawLine.match(/^\s*<!--\s*block\s*:\s*(.*?)\s*-->\s*$/);
+      if (solo) {
+        const v = String(solo[1] || "").trim();
+        if (v) buf.blockId = v;
+        flushSummary();
+        continue;
+      }
+      if (/^\s*<!--\s*aliases\s*:/.test(rawLine)) {
+        const aliasText = rawLine.replace(/^\s*<!--\s*aliases\s*:/, "").replace(/-->\s*$/, "");
+        const parts = aliasText.split(";").map((a) => a.trim()).filter(Boolean);
+        if (parts.length > 0) {
+          if (buf.cur.length === 0 && buf.paras.length === 0 && lastBullet && lastBullet.kind === current.kind) {
+            lastBullet.aliases = [...(lastBullet.aliases || []), ...parts];
+          } else {
+            buf.aliases = [...buf.aliases, ...parts];
+          }
+        }
+        continue;
+      }
+      if (/^\s*<!--\s*\w[\w-]*\s*:/.test(rawLine)) continue; // other standalone comments — not content
+      if (!rawLine.trim()) {
+        if (buf.cur.length > 0) {
+          buf.paras.push(buf.cur.join(" "));
+          buf.cur = [];
+        }
+        continue;
+      }
+      // Legacy/single-line style: an inline block comment means the whole
+      // block sits on this one line — flush any pending prose first.
+      let text = rawLine.trim();
+      let inlineBlock = null;
+      text = text
+        .replace(COMMENT_RE, (_, key, value) => {
+          if (key === "block" && inlineBlock == null) inlineBlock = String(value).trim();
+          return "";
+        })
+        .trim();
+      const bm = text.match(/^-\s+([\s\S]*)$/);
+      if (bm) text = bm[1].trim();
+      if (inlineBlock) {
+        flushSummary();
+        if (text) {
+          current.bullets.push({
+            content: text,
+            blockId: asUuidOrFresh(inlineBlock),
+            sourceBlockId: null,
+            aliases: [],
+            timestamp: null,
+            kind: current.kind,
+            level: 0,
+          });
+          lastBullet = current.bullets[current.bullets.length - 1];
+        }
+        continue;
+      }
+      if (text) buf.cur.push(text);
+      continue;
+    }
     if (current.name === "tags") {
       for (const tok of rawLine.trim().split(/\s+/)) {
         if (tok.startsWith("#") && tok.length > 1) current.tags.push(tok);
@@ -381,8 +468,8 @@ function importPageMarkdown(markdown) {
       });
       insertedIds.add(p.id);
       // Tags table mirrors structure.js exactly: page tags attach to tldr +
-      // key-idea blocks only; claims/questions/chunks carry tags in FTS.
-      if (p.props.kind === "tldr" || p.props.kind === "key-idea") {
+      // key-idea + detailed-summary blocks only; claims/chunks carry tags in FTS.
+      if (p.props.kind === "tldr" || p.props.kind === "key-idea" || p.props.kind === "detailed-summary") {
         for (const t of tags) insertTag.run(p.id, t);
       }
       const ftsTags = p.props.kind === "transcript-chunk" || p.props.kind === "zettel" ? [] : tags;

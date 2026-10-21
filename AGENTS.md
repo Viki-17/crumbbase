@@ -303,3 +303,40 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   stable, old-hub sync converts + converges, second sync all-skipped, DB
   counts intact, no migration (rollback = revert + restart). NOT YET DEPLOYED
   — prod still on old format; run the runbook top to bottom.
+- Oct 2026 (dense summary): new `Detailed summary` section alongside TL;DR
+  (300-600 words, same `pro` call, zero extra latency — `detailedSummary`
+  field in `notesSchema` with `""` default so legacy payloads validate, block
+  kind `detailed-summary` at position 1, FTS-indexed + tag-attached like TL;DR).
+  Mirror `## Detailed summary` is multiline prose (content verbatim + id on its
+  own `<!-- block:uuid -->` line; importer re-joins paragraphs into one block,
+  id-stable, byte-identical round-trip, legacy mirrors import cleanly). UI:
+  Outline prose callout between TL;DR and ideas, CardDeck untouched (whitelist),
+  concept extraction reads the new prose. Old pages: `POST
+  /api/sources/:id/summary/backfill` (additive insert at position 1 + mirror +
+  backup + link_index; skips when present; never replaces, so zettels survive)
+  with a `✨ Detailed summary` button in SourceView shown only when missing.
+  Verified on scratch DB (9/9: schema/prompt/render/parse/reimport/legacy/FTS/
+  skip/404), vite build + eslint (7 pre-existing errors, none new). Gotcha:
+  `renderMarkdown` takes `source.url` — a bare `sourceUrl` there throws.
+- Oct 2026 (drop follow-up questions): section removed everywhere — schema/
+  prompt/block loop (`structure.js`), mirror `SECTIONS` + spec example,
+  Outline/CardDeck render + orphaned CSS (incl. dead `SECTION_ORDER`
+  fallback), concept/atomize kind filters, `reindex-fts` kind set. Old records:
+  `007_drop_questions.sql` purges question blocks + FTS rows on boot (tags/
+  links/concept edges cascade via FK), importer unmaps `## Follow-up
+  questions` so legacy mirrors + hub sync converge instead of reintroducing,
+  `scripts/purge-questions.js` rewrites all mirrors in one shot. Verified on
+  scratch DB (6/6: schema strips legacy field, 007 SQL purges blocks+FTS+tags,
+  purge script rewrites, legacy import drops, renderer clean), vite build +
+  eslint (7 pre-existing errors, none new).
+- Oct 2026 (deploy: dense summary + question drop): shipped working tree to
+  prod (client build `index-CSVAVBgi.js` rsynced + nginx reloaded, hash
+  verified 200; `pm2 restart crumbbase-api` healthy, 22 tables, sidecar
+  reachable). Boot auto-ran 007 (509 question blocks purged, 17370→16861,
+  sources/pages intact at 139). `purge-questions.js` rewrote 139 mirrors;
+  removed one orphan smoke-test ghost (`e1f75b05…`, no DB page) via
+  removeManifestEntry/removePageMirror; `check-okf.js` conformant (139 +
+  index). Manual backup pushed (`4de0f55`, 139 pages). Live smoke: backfill on
+  one prod page via sidecar pro call → 4029-char summary block + mirror.
+  Backup of that lands on the daily gate (no forced second push). Other sync
+  machines still need pull + restart before their next sync (runbook §3).

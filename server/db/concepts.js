@@ -396,7 +396,7 @@ function linkEntitiesForPage({ pageId, entities = [], tags = [] }) {
   const db = getDb();
   const tree = pagesRepo.getPageTree(pageId);
   if (!tree) return 0;
-  const NOTE_KINDS = new Set(["tldr", "key-idea", "claim", "question", "zettel"]);
+  const NOTE_KINDS = new Set(["tldr", "detailed-summary", "key-idea", "claim", "zettel"]);
   const notes = tree.blocks.filter((b) => NOTE_KINDS.has((b.props && b.props.kind) || ""));
   const flatBlocks = notes.map((b) => ({ block: b, flat: flatForMatch(`${b.content} ${(b.props.aliases || []).join(" ")}`) }));
 

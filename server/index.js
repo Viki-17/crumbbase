@@ -352,6 +352,21 @@ router.post("/sources/:id/concepts/extract", (req, res) => {
   res.status(202).json({ queued: true, jobId: job.id });
 });
 
+// Detailed-summary backfill (one AI call, additive): generates the dense
+// summary block for pages structured before the field existed and inserts it
+// at position 1. Skips pages that already have one. Never replaces the page,
+// so zettels and concept links survive.
+router.post("/sources/:id/summary/backfill", async (req, res) => {
+  try {
+    const result = await require("./handlers/summary-backfill").backfillSummaryForSource(req.params.id);
+    if (result.skipped) return res.json({ ok: true, skipped: true, blockId: result.blockId });
+    res.status(201).json({ ok: true, skipped: false, blockId: result.blockId });
+  } catch (err) {
+    const status = err && err.status ? err.status : 500;
+    res.status(status).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
 router.get("/graph", (req, res) => {
   try {
     res.json(require("./db/concepts").getGraphData({}));

@@ -16,14 +16,15 @@ const TRANSCRIPT_BUDGET = 15000;
 const CHUNK_EVERY_SEGMENTS = 5;
 const MAX_IDEAS = 12;
 const MAX_CLAIMS = 10;
-const MAX_QUESTIONS = 8;
 const MAX_TAGS = 12;
 const MAX_ALIASES = 5;
 const MAX_ENTITIES = 12;
 const MAX_ENTITY_ALIASES = 3;
+const SUMMARY_MAX_CHARS = 6000;
 
 const notesSchema = z.object({
   tldr: z.string().min(1),
+  detailedSummary: z.string().default(""),
   keyIdeas: z
     .array(
       z.object({
@@ -44,7 +45,6 @@ const notesSchema = z.object({
       }),
     )
     .default([]),
-  followUpQuestions: z.array(z.string().min(1)).default([]),
   tags: z.array(z.string().min(1)).default([]),
   entities: z
     .array(
@@ -70,9 +70,9 @@ function buildPrompt({ title, creator, url, durationSeconds, transcript }) {
     "Return JSON ONLY (no markdown fences, no commentary) with EXACTLY this shape:",
     "{",
     '  "tldr": "2-3 sentence gist",',
+    '  "detailedSummary": "dense 300-600 word markdown summary (2-4 paragraphs; short bullets only where essential)",',
     '  "keyIdeas": [{"label": "short name", "summary": "1-2 sentences", "timestamp": seconds|null, "aliases": ["alternate phrasing", "..."]}],',
     '  "notableClaims": [{"claim": "...", "support": "...", "timestamp": seconds|null, "aliases": ["alternate phrasing"]}],',
-    '  "followUpQuestions": ["..."],',
     '  "tags": ["kebab-case-topic", "..."],',
     '  "entities": [{"name": "Palantir", "aliases": ["palantir technologies"], "evidence": "verbatim sentence from the notes where it appears"}]',
     "}",
@@ -80,6 +80,7 @@ function buildPrompt({ title, creator, url, durationSeconds, transcript }) {
     "- timestamps are seconds into the media (or null when unsure)" +
       (durationSeconds != null ? `; media length is ${durationSeconds}s, never exceed it` : ""),
     "- 4-8 key ideas, each with 2-4 search aliases (how a user might rephrase it)",
+    "- detailedSummary is 300-600 words of dense markdown prose: the central thesis, how the sections build the argument, key reasoning and evidence, connections between concepts, nuances/counterpoints/caveats, and essential terms. Maximize information per word, no filler, never invent facts; preserve attribution and uncertainty. Paragraph breaks as blank lines; bullets only where a list carries real density",
     "- claim aliases (1-2 each): alternate phrasings of the claim",
     "- idea AND claim aliases must name the originating entity where one exists (e.g. a Palantir-originated practice gets alias 'palantir'; a TCS layoff claim gets alias 'tcs')",
     "- entities are 5-12 proper nouns / named practices / movements central to the notes (companies, people, frameworks, named roles like 'forward deployed engineer'), each with 1-3 aliases (acronyms, alternate casings) and the verbatim evidence sentence from the notes",
@@ -176,6 +177,18 @@ async function handleStructure(job) {
   for (const tag of tags) pagesRepo.addTag(tldrBlock.id, tag);
   pagesRepo.indexBlock({ blockId: tldrBlock.id, title: page.title, content: notes.tldr, aliases: [], tags });
 
+  const summaryText = String(notes.detailedSummary || "").trim().slice(0, SUMMARY_MAX_CHARS).trim();
+  if (summaryText) {
+    const summaryBlock = pagesRepo.addBlock({
+      pageId: page.id,
+      position: next(),
+      content: summaryText,
+      props: { kind: "detailed-summary" },
+    });
+    for (const tag of tags) pagesRepo.addTag(summaryBlock.id, tag);
+    pagesRepo.indexBlock({ blockId: summaryBlock.id, title: page.title, content: summaryText, aliases: [], tags });
+  }
+
   for (const idea of notes.keyIdeas.slice(0, MAX_IDEAS)) {
     const aliases = [...new Set((idea.aliases || []).map((a) => String(a).trim()).filter(Boolean))].slice(0, MAX_ALIASES);
     const block = pagesRepo.addBlock({
@@ -197,16 +210,6 @@ async function handleStructure(job) {
       props: { kind: "claim", timestamp: ts(claim.timestamp), aliases },
     });
     pagesRepo.indexBlock({ blockId: block.id, title: page.title, content: `${claim.claim} ${claim.support}`, aliases, tags });
-  }
-
-  for (const question of notes.followUpQuestions.slice(0, MAX_QUESTIONS)) {
-    const block = pagesRepo.addBlock({
-      pageId: page.id,
-      position: next(),
-      content: question,
-      props: { kind: "question" },
-    });
-    pagesRepo.indexBlock({ blockId: block.id, title: page.title, content: question, aliases: [], tags });
   }
 
   for (const chunk of chunkSegments(transcript.segments)) {
