@@ -36,6 +36,11 @@ export default defineConfig({
         // network-only, and the app boots to Library from in-memory state
         // (no navigateFallback needed).
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        // The plugin defaults navigateFallback to index.html; that NavigationRoute
+        // served the app shell for same-origin IFRAME navigations too, hijacking
+        // /api/course/raw/* lesson loads (and any future /api document response).
+        // Deny /api so those navigations always hit the network.
+        navigateFallbackDenylist: [/^\/api\//],
       },
       devOptions: { enabled: false },
     }),

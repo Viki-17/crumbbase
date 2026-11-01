@@ -507,6 +507,35 @@ router.post("/settings/cookies/test", settingsHandler.requireSettingsToken, asyn
   }
 });
 
+// --- Dev Core course reader: verbatim SingleFile HTML packs ---
+const courseHandler = require("./handlers/course");
+
+// GET /api/course/lessons → { available, groups:[{name, lessons:[{id,group,num,title,url,size}]}] }
+router.get("/course/lessons", (req, res) => {
+  try {
+    res.json(courseHandler.listLessons());
+  } catch (err) {
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
+// GET /api/course/raw/<id segments> → exact file bytes, never modified.
+// Express 5: {*name} splat arrives as an array with one element per path
+// segment (already decoded); reassemble into the lesson id.
+router.get("/course/raw/{*raw}", (req, res) => {
+  const rawParam = req.params.raw;
+  const id = Array.isArray(rawParam) ? rawParam.join("/") : rawParam;
+  const abs = courseHandler.resolveLessonPath(id);
+  if (!abs) return res.status(404).json({ error: "Course lesson not found." });
+  res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+  res.type("html");
+  res.sendFile(abs, (err) => {
+    if (err && !res.headersSent) {
+      res.status(404).json({ error: "Course lesson not found." });
+    }
+  });
+});
+
 // Anything else under /api: explicit 404 (old Mongo routes are gone).
 router.use((req, res) => {
   res.status(404).json({ error: "Unknown API endpoint (revamp P1)." });

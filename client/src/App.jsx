@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { Toaster } from "react-hot-toast";
-import { LibraryBig, Search, Tags, Network, Settings } from "lucide-react";
+import { LibraryBig, BookOpen, Search, Tags, Network, Settings } from "lucide-react";
 import Library from "./views/Library.jsx";
+import CourseView from "./views/CourseView.jsx";
 import SourceView from "./views/SourceView.jsx";
 import SearchView from "./views/SearchView.jsx";
 import ConceptsView from "./views/ConceptsView.jsx";
@@ -36,6 +37,12 @@ export default function App() {
           onClick={() => go({ view: "library" })}
         >
           <LibraryBig size={18} /> Library
+        </button>
+        <button
+          className={`nav-btn${route.view === "devcore" ? " active" : ""}`}
+          onClick={() => go({ view: "devcore" })}
+        >
+          <BookOpen size={18} /> Dev Core
         </button>
         <button
           className={`nav-btn${route.view === "search" ? " active" : ""}`}
@@ -76,11 +83,23 @@ export default function App() {
         <span className="brand">
           Crumb<span>base</span>
         </span>
+        <button
+          className={`topbar-gear${route.view === "settings" ? " active" : ""}`}
+          aria-label="Settings"
+          title="Settings"
+          onClick={() => go({ view: "settings" })}
+        >
+          <Settings size={19} />
+        </button>
       </header>
       <nav className="mobile-nav" aria-label="Primary">
         <button className={`tab${isActive("library") ? " active" : ""}`} onClick={() => go({ view: "library" })}>
           <LibraryBig size={20} />
           <span>Library</span>
+        </button>
+        <button className={`tab${route.view === "devcore" ? " active" : ""}`} onClick={() => go({ view: "devcore" })}>
+          <BookOpen size={20} />
+          <span>Study</span>
         </button>
         <button className={`tab${isActive("search") ? " active" : ""}`} onClick={() => go({ view: "search", q: "" })}>
           <Search size={20} />
@@ -94,13 +113,10 @@ export default function App() {
           <Network size={20} />
           <span>Graph</span>
         </button>
-        <button className={`tab${route.view === "settings" ? " active" : ""}`} onClick={() => go({ view: "settings" })}>
-          <Settings size={20} />
-          <span>Settings</span>
-        </button>
       </nav>
-      <main className="main">
+      <main className={`main${route.view === "devcore" ? " wide" : ""}`}>
         {route.view === "library" && <Library go={go} />}
+        {route.view === "devcore" && <CourseView initialId={route.id} />}
         {route.view === "source" && <SourceView key={route.id} id={route.id} go={go} />}
         {route.view === "search" && <SearchView key={route.q || "s"} initial={route.q || ""} go={go} />}
         {route.view === "concepts" && <ConceptsView go={go} />}

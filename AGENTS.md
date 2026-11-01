@@ -340,3 +340,75 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   one prod page via sidecar pro call → 4029-char summary block + mirror.
   Backup of that lands on the daily gate (no forced second push). Other sync
   machines still need pull + restart before their next sync (runbook §3).
+- Oct 2026 (Dev Core reader): new sidebar entry "Dev Core" (right after
+  Library; mobile tab "Study" replaces Settings in the bottom bar — Settings
+  gear moved to mobile-topbar top-right). Verbatim reader for a 62-file
+  SingleFile save of Hello Interview's "System Design in a Hurry":
+  originals copied untouched to `data/hurry-course/` (gitignored, 163MB,
+  never mirrored/backed-up). `server/handlers/course.js`: GET `/api/course/
+  lessons` (filename-derived title/num + SingleFile `url:` head comment,
+  cache keyed on dir mtimes, subfolders → their own groups) + GET
+  `/api/course/raw/{*raw}` (`res.sendFile` — byte-for-byte; verified 62/62
+  cmp-identical; path-traversal-safe). NEW `CourseView.jsx`: lesson list +
+  filter + iframe reader, prev/next, original-link; desktop two-pane, mobile
+  uses a select dropdown + jump buttons. Dark toggle added later (Moon/Sun
+  button): injects an `invert(1) hue-rotate(180deg)` stylesheet into the
+  same-origin iframe document at display time (`#crumbbase-dark`), media
+  double-inverted to keep true colors; filter targets `body` (html only gets
+  a black canvas — avoids root-filter propagation quirks); files on disk stay
+  byte-identical, removal of the style restores the saved look; preference
+  kept in localStorage `devcore-dark` (dark is the default; only an explicit
+  "0" opts out). Fixed along the way: mobile had NO way
+  to open a lesson (side list hidden, picker only rendered post-selection) —
+  empty state now shows a `course-pick` select on ≤860px. Verified with
+  headless Chrome + CDP (style injects, computed filter set, survives 15s +
+  Next-nav, desktop+mobile screenshots dark): toggle works — a "not
+  switching" report with the button visible means a stale bundle/SW on that
+  device (rebuild + rsync dist + hard refresh). Gotchas: Express 5 wildcard routes
+  need `{*name}` (bare `*` throws path-to-regexp v8 PathError) and `{*raw}`
+  params arrive as an **array with one element per path segment** (split on
+  `/` then decoded) — rejoin with `rawParam.join("/")`; URLs built client-
+  side via `id.split("/").map(encodeURIComponent).join("/")`. To add more
+  packs later: drop HTML files (root = "Lessons" group, subfolders = named
+  groups) into `data/hurry-course/` and reload — no code change.
+- Nov 2026 (grills): added `data/hurry-course/Grills/` with
+  `backend-scaling-grill.html` + `data-modelling-grill.html` (byte-identical
+  `cp`, cmp-verified) → separate **Grills** group via the subfolder rule;
+  no other saves in `~/Downloads/notes/` were added (11 grill files exist
+  there — ask before bulk-dropping). `course.js lessonMeta` now humanizes
+  all-lowercase dashed filenames into titles ("Data Modelling Grill"),
+  gated on `title === title.toLowerCase()` so existing mixed-case lessons
+  ("Real-time…", "Multi-step…") are byte-untouched. Not deployed (copy the
+  folder + rsync/restart for the title fix).
+- Nov 2026 (Dev Core mobile revamp): real grouped lesson list on mobile
+  ≤860px (was select-only; groups + in-panel filter, 44px rows,
+  3-line titles) — empty-state `course-pick` select deleted. Lesson open =
+  **full-screen fixed sheet** (`.course-view.reading`: `position:fixed`,
+  bottom = tab-bar top `calc(65px + safe)`, z-25, open animation) — no more
+  `calc(100vh - 240px)` guessing; view-head hidden while reading; original
+  link + dark toggle moved to icon buttons in the reader head (all
+  viewports, desktop regressed cleanly); close returns to the list at top.
+  **CRITICAL SW GOTCHA: vite-plugin-pwa silently defaults workbox
+  `navigateFallback` to `index.html` — the generated NavigationRoute served
+  the app shell for same-origin IFRAME navigations**, i.e. `/api/course/raw/*`
+  lesson loads rendered Crumbbase inside the iframe (preview AND any
+  browser with the SW active — likely broken in prod since the PWA drop).
+  Fixed via `workbox.navigateFallbackDenylist: [/^\/api\//]` in
+  vite.config.js. Verified headless-Chrome CDP at 390×844: list render,
+  Grills group scroll, open/close round-trip, iframe doc = real lesson
+  (title+176K chars) + dark style injected, desktop two-pane intact after
+  button move; vite build green. Deploy: normal rebuild+rsync flow —
+  devices get the fixed SW on next autoUpdate; hard refresh if stale.
+- Nov 2026 (Dev Core jump-bar icons): prev/next chevrons were rendering as
+  EMPTY boxes on mobile — root cause: `.course-select` had `flex: 1 1 auto`,
+  its flex-basis tracked the LONGEST `<option>` (60+ lessons), overflowed the
+  row and squeezed the buttons until their SVGs collapsed to width 0 (via
+  global `img, svg { max-width: 100% }`). Fix: select `flex: 1 1 0;
+  min-width: 0`, jump buttons/wrapper `flex-shrink: 0; min-width: 44px`
+  centered inline-flex, chevrons 16→20px (aria-labels), select
+  `appearance: none` + inline-SVG chevron background (`--text-dim`, 14px at
+  right 12px) replacing the tiny native spinner, font 15→16px (iOS zoom).
+  Verified headless-CDP 390×844: SVGs non-zero, no row overflow, prev
+  disabled on first lesson / next on last, desktop two-pane untouched,
+  vite build green. Deploy = normal client rebuild+rsync; hard refresh
+  phones for the new SW.
