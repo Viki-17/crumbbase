@@ -124,6 +124,15 @@ function hasPendingJob(type) {
   return row.c > 0;
 }
 
+function hasPendingJobForSource(type, sourceId) {
+  const row = getDb()
+    .prepare(
+      "SELECT COUNT(*) AS c FROM jobs WHERE type = ? AND source_id = ? AND status IN ('queued', 'running')",
+    )
+    .get(type, sourceId);
+  return row.c > 0;
+}
+
 function addLog({ sourceId = null, level = "info", message }) {
   const db = getDb();
   const row = {
@@ -161,6 +170,7 @@ module.exports = {
   markStaleRunningJobsQueued,
   getQueueDepth,
   hasPendingJob,
+  hasPendingJobForSource,
   addLog,
   getLogsForSource,
 };

@@ -210,13 +210,45 @@ async function handleIngest(job) {
     await jobs.addLog({ sourceId: job.sourceId, level: "warn", message: "Ingest: source deleted, skipping." });
     return;
   }
-  if (source.status === "complete") return; // idempotent re-run
+  const refresh = !!(job.payload && job.payload.refresh);
+  if (source.status === "complete" && !refresh) return; // idempotent re-run
 
   const log = (level, message) => jobs.addLog({ sourceId: source.id, level, message });
   const setStatus = (status, patch = {}) => {
     sources.updateSource(source.id, { status, error: null, ...patch });
     events.publishEvent({ type: "sourceStatus", sourceId: source.id, status });
   };
+
+  // Manual retry (usually after cookies were updated): when the source
+  // already has a transcript/pasted text, only backfill title + thumbnail so
+  // notes, zettels and concept links are never touched.
+  const existingTranscript = sources.getTranscript(source.id);
+  const metadataOnly = refresh && (!!existingTranscript || source.status === "complete");
+  if (metadataOnly) {
+    if (source.sourceType !== "youtube") {
+      await log("info", "Metadata refresh skipped — only YouTube sources are supported.");
+      return;
+    }
+    const previousStatus = source.status;
+    setStatus("fetching");
+    await log("info", "Refreshing metadata (title/thumbnail) via yt-dlp — transcript and notes kept.");
+    try {
+      const info = await runYtDlpJson(source.url);
+      sources.updateSource(source.id, {
+        title: info.title || source.title,
+        creator: info.uploader || info.channel || source.creator,
+        duration_seconds: Number.isFinite(info.duration) ? Math.round(info.duration) : source.duration_seconds,
+        thumbnail_url: info.thumbnail || source.thumbnail_url,
+      });
+      setStatus(previousStatus);
+      await log("info", "Metadata refreshed.");
+    } catch (err) {
+      const message = err && err.message ? err.message : String(err);
+      setStatus(previousStatus);
+      await log("warn", `Metadata refresh failed (${message}). Check cookies and try again.`);
+    }
+    return;
+  }
 
   // Paste-only mode, or non-YouTube (extractors land in P3): wait for paste.
   // Provider is DB-overridable at runtime via the Settings page (no restart).

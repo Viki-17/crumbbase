@@ -96,6 +96,12 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   `fetch first` (diverged histories), merge in `./data` (manifest conflicts:
   keep local — it matches `pages/` on disk) and push.
 
+- YouTube cookies: a Netscape file that passes the Settings validator can
+  still be a logged-out export. Logged-in sessions carry `LOGIN_INFO` (plus
+  `__Secure-3PSID`/`3PAPISID`); the 16:07 Nov 18 export lost `LOGIN_INFO` and
+  hit `Sign in to confirm you’re not a bot` on every fetch. Even valid cookies
+  are flaky from the datacenter IP (same file: 1 success / 3 failures / then
+  success again) — use ↻ Retry fetch (below) rather than re-capturing.
 ## Sessions
 - Oct 2026 (revamp kickoff): replaced memory; removed Ollama dep + all
   embedding call sites (ask/auto-connect/suggest-links return 501 until P1/P2
@@ -412,3 +418,32 @@ Full guide in `DEPLOY.md`. Production shape, verified Oct 2026:
   disabled on first lesson / next on last, desktop two-pane untouched,
   vite build green. Deploy = normal client rebuild+rsync; hard refresh
   phones for the new SW.
+- Nov 2026 (deploy: Dev Core reader + mobile revamp + grills): shipped HEAD
+  `874927d` to prod. Client rebuilt (`index-CJsORHnF.js`) → rsync dist →
+  chown www-data → `nginx -t`/reload; served hash verified. `pm2 restart`
+  crumbbase-api healthy; live checks: setup/status green, `/api/course/lessons`
+  = Lessons(56) + Grills(2) + Updates Jan 2026(5) + Updates Feb 2026(1),
+  grill titles humanized ("Backend Scaling Grill"), `/api/course/raw/Grills/
+  backend-scaling-grill` 200 byte-size match, sw.js served with
+  `denylist:[/^\/api\//]`. Note: lesson ids carry NO `.html`; raw URL is id
+  as-is (route appends `.html`) — appending `.html` yourself 404s. Phones
+  need a hard refresh to pick up the fixed SW.
+- Nov 2026 (retry fetch + missing thumbnails): pasted sources had null
+  title/thumbnail — auto-fetch aborted before yt-dlp ran, and paste never
+  backfilled metadata, with no way to retry. Added `refresh` ingest payload:
+  `POST /api/sources/:id/refetch` (404/409 guards via new
+  `jobs.hasPendingJobForSource`; complete→keeps status, else sets queued).
+  Ingest with `{refresh:true}` is metadata-only when a transcript exists
+  (sets fetching then restores previous status; touches only
+  title/creator/duration/thumbnail_url — transcripts, blocks, zettels and
+  concept links untouched); sources without a transcript retry the full
+  yt-dlp→captions→structure flow. UI: `↻ Retry fetch` in SourceView for
+  awaiting_paste/failed/complete-missing-title-or-thumb + banner copy.
+  Verified on scratch DB with a stub yt-dlp (metadata-only kept transcript
+  byte-identical; awaiting source fetched captions and queued structure;
+  duplicate POST 409) and live route/worker. Deployed (client
+  `index-CCwgJdKG.js`, api restart) and backfilled the two pasted videos
+  (xWk9MP4ed-4 needed 3 retries; du5nJ4luqMI one) — titles + thumbnails now
+  in Library, transcripts 19.7K/26.4K chars and blocks 96/63 intact, no
+  structure jobs. Gotcha: the user's newer cookie export lacked LOGIN_INFO
+  and was mostly unusable; see Gotchas log.

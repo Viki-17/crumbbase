@@ -191,6 +191,33 @@ router.post("/sources/:id/paste", (req, res) => {
   res.json({ ok: true, source: sourcesRepo.getSource(source.id) });
 });
 
+// Manual re-fetch: after updating YouTube cookies (or a transient bot
+// challenge), run yt-dlp again. Sources that already have a transcript keep
+// their notes — only title/thumbnail metadata is refreshed; pasted/awaiting
+// sources retry the full transcript fetch.
+router.post("/sources/:id/refetch", (req, res) => {
+  try {
+    const source = sourcesRepo.getSource(req.params.id);
+    if (!source) return res.status(404).json({ error: "Source not found." });
+    if (sqliteJobs.hasPendingJobForSource("ingest", source.id)) {
+      return res.status(409).json({ error: "A fetch is already queued for this source." });
+    }
+    if (["queued", "fetching", "processing"].includes(source.status)) {
+      return res
+        .status(409)
+        .json({ error: `Source is ${source.status.replace("_", " ")} — wait for the current job to finish.` });
+    }
+    sqliteJobs.enqueueJob({ type: "ingest", sourceId: source.id, payload: { refresh: true } });
+    if (source.status !== "complete") {
+      sourcesRepo.updateSource(source.id, { status: "queued", error: null });
+      events.publishEvent({ type: "sourceStatus", sourceId: source.id, status: "queued" });
+    }
+    res.status(202).json({ queued: true });
+  } catch (err) {
+    res.status(500).json({ error: err && err.message ? err.message : String(err) });
+  }
+});
+
 router.delete("/sources/:id", (req, res) => {
   const source = sourcesRepo.getSource(req.params.id);
   if (!source) return res.status(404).json({ error: "Source not found." });

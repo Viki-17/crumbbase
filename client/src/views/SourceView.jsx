@@ -124,7 +124,22 @@ export default function SourceView({ id, go }) {
   const [zettelBusy, setZettelBusy] = useState(false);
   const [linkBusy, setLinkBusy] = useState(false);
   const [summaryBusy, setSummaryBusy] = useState(false);
+  const [fetchBusy, setFetchBusy] = useState(false);
   const [tagsOpen, setTagsOpen] = useState(false);
+
+  const refetch = async () => {
+    if (fetchBusy) return;
+    setFetchBusy(true);
+    try {
+      await api.post(`/sources/${id}/refetch`);
+      toast.success("Re-fetch queued — refresh in a few seconds.");
+      setTimeout(load, 3000);
+    } catch (err) {
+      toast.error(apiError(err, "Re-fetch failed"));
+    } finally {
+      setFetchBusy(false);
+    }
+  };
 
   const makeCards = async () => {
     if (zettelBusy) return;
@@ -227,6 +242,18 @@ export default function SourceView({ id, go }) {
         <span className={`pill ${st.cls}`}>{st.label}</span>
         {detail.error && <span className="pill failed">{detail.error.slice(0, 120)}</span>}
         <div className="spacer" />
+        {(detail.status === "awaiting_paste" ||
+          detail.status === "failed" ||
+          (detail.status === "complete" && (!detail.thumbnailUrl || !detail.title))) && (
+          <button
+            className="btn"
+            onClick={refetch}
+            disabled={fetchBusy}
+            title="Re-run yt-dlp with the saved cookies — refreshes title/thumbnail (and fetches the transcript if missing). Notes are kept."
+          >
+            {fetchBusy ? "Retrying…" : "↻ Retry fetch"}
+          </button>
+        )}
         {detail.status === "complete" && (
           <button className="btn" onClick={makeCards} disabled={zettelBusy} title="Split key ideas into bite-sized Zettel cards (AI if sidecar up, else local)">
             {zettelBusy ? "Making…" : "✨ Make cards"}
@@ -265,9 +292,9 @@ export default function SourceView({ id, go }) {
 
       {detail.status === "awaiting_paste" && (
         <div className="banner">
-          <strong>Auto-fetch couldn't get this transcript.</strong> Open the video description (or
-          YouTube's transcript panel), copy the text, and paste it below — the pipeline resumes
-          automatically.
+          <strong>Auto-fetch couldn't get this transcript.</strong> Updated your YouTube cookies?
+          Hit ↻ Retry fetch first. Otherwise open the video description (or YouTube's transcript
+          panel), copy the text, and paste it below — the pipeline resumes automatically.
           <form className="paste-box" onSubmit={submitPaste}>
             <textarea
               placeholder="Paste transcript text here (min 20 characters)…"
@@ -283,8 +310,8 @@ export default function SourceView({ id, go }) {
 
       {detail.status === "failed" && (
         <div className="banner">
-          <strong>Something failed.</strong> Check the log below, then re-paste the transcript or
-          delete and re-capture.
+          <strong>Something failed.</strong> Check the log below, then try ↻ Retry fetch, re-paste
+          the transcript, or delete and re-capture.
         </div>
       )}
 
